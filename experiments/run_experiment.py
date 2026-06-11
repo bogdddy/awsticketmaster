@@ -14,11 +14,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("experiment")
 
 
-def run_loadgen(env_overrides: dict, duration: int = None):
+def run_loadgen(env_overrides: dict, duration: int = None, rabbitmq_host=None, rabbitmq_user=None, rabbitmq_password=None):
     """Run the load generator with environment overrides."""
     cmd = [sys.executable, "-m", "loadgen.app.main"]
     env = os.environ.copy()
     env.update(env_overrides)
+    if rabbitmq_host:
+        env["RABBITMQ_HOST"] = rabbitmq_host
+    if rabbitmq_user:
+        env["RABBITMQ_USER"] = rabbitmq_user
+    if rabbitmq_password:
+        env["RABBITMQ_PASS"] = rabbitmq_password
     log.info("Starting loadgen with: %s", {k: v for k, v in env_overrides.items() if k.startswith("LOAD_")})
     proc = subprocess.Popen(cmd, env=env, cwd=PROJECT_ROOT)
     if duration:
@@ -77,7 +83,7 @@ def experiment_calibration(args):
             "LOAD_T4_SUSTAINED_S": "60",
             "LOAD_T5_COOLDOWN_S": "0",
             "LOAD_SPIKE_BURSTS": "0",
-        })
+        }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
         export_results(
             db_host=args.pg_host,
             db_port=args.pg_port,
@@ -103,7 +109,7 @@ def experiment_speedup(args):
             "LOAD_T4_SUSTAINED_S": "90",
             "LOAD_T5_COOLDOWN_S": "0",
             "LOAD_SPIKE_BURSTS": "0",
-        }, duration=120)
+        }, duration=120, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
         time.sleep(10)
         export_results(
             db_host=args.pg_host,
@@ -129,7 +135,7 @@ def experiment_stress(args):
         "LOAD_T4_SUSTAINED_S": "60",
         "LOAD_T5_COOLDOWN_S": "30",
         "LOAD_SPIKE_BURSTS": "2",
-    })
+    }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
@@ -153,7 +159,7 @@ def experiment_elasticity(args):
         "LOAD_T4_SUSTAINED_S": "120",
         "LOAD_T5_COOLDOWN_S": "60",
         "LOAD_SPIKE_BURSTS": "3",
-    })
+    }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
@@ -181,7 +187,7 @@ def experiment_contention(args):
         "LOAD_T4_SUSTAINED_S": "120",
         "LOAD_T5_COOLDOWN_S": "30",
         "LOAD_SPIKE_BURSTS": "0",
-    })
+    }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
@@ -209,6 +215,9 @@ def main():
     parser.add_argument("--pg-db", default=os.environ.get("POSTGRES_DB", "ticketdb"))
     parser.add_argument("--pg-user", default=os.environ.get("POSTGRES_USER", "ticketapp"))
     parser.add_argument("--pg-password", default=os.environ.get("POSTGRES_PASS"))
+    parser.add_argument("--rabbitmq-host", default=os.environ.get("RABBITMQ_HOST", "10.0.1.10"))
+    parser.add_argument("--rabbitmq-user", default=os.environ.get("RABBITMQ_USER", "admin"))
+    parser.add_argument("--rabbitmq-password", default=os.environ.get("RABBITMQ_PASS", "ddd"))
     args = parser.parse_args()
 
     experiments = {
