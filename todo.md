@@ -7,14 +7,12 @@
 
 **Causa raíz:** El loadgen envía mensajes más rápido de lo que el worker consume. Los mensajes se acumulan en RabbitMQ. Cuando el test termina, el cleanup purga la cola, pero los mensajes que *ya se enviaron pero no se procesaron* no se reflejan en los resultados.
 
-**Solución propuesta:**
-```python
-# En run_experiment.py, antes de export_results:
-# Esperar a que la cola de RabbitMQ se vacíe
-# Usar API management para verificar messages=0 antes de exportar
-```
+**Solución implementada:**
+- `run_experiment.py` espera a que la cola de RabbitMQ se vacíe (workers terminen de consumir) antes de exportar resultados
+- `export_results` ahora recibe `--since` y `--until` para filtrar por ventana temporal exacta
+- `cleanup.py` drena la cola antes de purgar y verifica que quede vacía
 
-**Archivo:** `benchmarks/run_experiment.py`
+**Archivos:** `benchmarks/cleanup.py`, `benchmarks/run_experiment.py`
 
 ---
 
@@ -46,14 +44,12 @@
 
 **Causa raíz:** Los tests se ejecutaron en horarios consecutivos y el cleanup no fue suficiente para separar los datos.
 
-**Solución propuesta:**
-```python
-# Mejorar export_results.py para filtrar por rango temporal:
-# export_results --since "2026-06-12 06:25:00" --until "2026-06-12 06:30:00"
-# O usar request_id tracking para separar runs
-```
+**Solución implementada:**
+- `run_experiment.py` ahora pasa `--until experiment_end` a `export_results`, filtrando estrictamente la ventana temporal de cada experimento
+- `cleanup.py` mata TODAS las conexiones worker de PostgreSQL antes de limpiar (flag `--force`)
+- `cleanup.py` verifica que las tablas queden vacías después del reset y reintenta si falla (flag `--retry`)
 
-**Archivo:** `analysis/export_results.py`
+**Archivos:** `benchmarks/cleanup.py`, `benchmarks/run_experiment.py`
 
 ---
 
@@ -62,13 +58,12 @@
 
 **Causa raíz:** `cleanup.py` intenta TRUNCATE/DELETE que quedan bloqueados por transacciones abiertas del worker.
 
-**Solución propuesta:**
-```python
-# En cleanup.py: agregar timeout y kill de conexiones
-# O en run_all_benchmarks.sh: matar conexiones antes de cleanup
-```
+**Solución implementada:**
+- `cleanup.py --force` mata TODAS las conexiones del usuario `ticketapp` (no solo idle-in-transaction)
+- `cleanup.py --retry N` reintenta si la verificación post-cleanup falla
+- `cleanup.py --drain` espera a que la cola RabbitMQ se vacíe antes de limpiar
 
-**Archivo:** `benchmarks/cleanup.py`, `benchmarks/run_all_benchmarks.sh`
+**Archivos:** `benchmarks/cleanup.py`, `benchmarks/run_all_benchmarks.sh`
 
 ---
 
@@ -87,13 +82,13 @@
 
 ---
 
-## Orden de prioridad
+## Estado actual
 
-1. 🔴 **Backlog entre runs** (arreglar flujo de cleanup)
-2. 🔴 **Cleanup se cuelga** (timeout + kill connections)
-3. 🟡 **Stress contaminado** (filtrar por timestamp)
-4. 🟡 **Contención sin efecto** (verificar metodología)
-5. 🟢 **Plots con anotaciones** (mejora estética)
+- ✅ 1. **Backlog entre runs** — Fix implementado (drain queue + --since/--until)
+- ✅ 2. **Cleanup se cuelga** — Fix implementado (--force mata conexiones + --retry)
+- ✅ 3. **Stress contaminado** — Fix implementado (--until + verify_clean)
+- 🟡 4. **Contención sin efecto** — Pendiente de verificar con nueva metodología
+- 🟢 5. **Plots con anotaciones** — Mejora estética, baja prioridad
 
 ---
 

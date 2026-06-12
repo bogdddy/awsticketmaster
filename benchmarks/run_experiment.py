@@ -2,16 +2,47 @@
 Experiment orchestrator. Runs load tests and captures results.
 """
 import argparse
+import json
 import logging
 import os
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
+import base64
+from datetime import datetime, timezone
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("experiment")
+
+
+def wait_for_queue_drain(rabbitmq_host, rabbitmq_user, rabbitmq_password,
+                         queue="tickets.buy", timeout=120, poll_interval=5):
+    url = f"http://{rabbitmq_host}:15672/api/queues/%2F/{queue}"
+    credentials = base64.b64encode(f"{rabbitmq_user}:{rabbitmq_password}".encode()).decode()
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Basic {credentials}")
+
+    log.info("Waiting for queue '%s' to drain (timeout=%ds)...", queue, timeout)
+    elapsed = 0
+    while elapsed < timeout:
+        try:
+            resp = urllib.request.urlopen(req, timeout=5)
+            data = json.loads(resp.read().decode())
+            depth = data.get("messages", 0)
+        except Exception:
+            log.warning("Cannot check queue depth, proceeding anyway")
+            return
+        if depth == 0:
+            log.info("Queue empty after ~%ds", elapsed)
+            return
+        log.info("Queue has %d messages, waiting %ds...", depth, poll_interval)
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    log.warning("Timeout waiting for queue drain (%ds). Proceeding with %d messages.", timeout, depth)  # noqa: F821
 
 
 def run_loadgen(env_overrides: dict, duration: int = None, rabbitmq_host=None, rabbitmq_user=None, rabbitmq_password=None):
@@ -36,7 +67,7 @@ def run_loadgen(env_overrides: dict, duration: int = None, rabbitmq_host=None, r
     return proc.returncode
 
 
-def export_results(db_host=None, db_port=None, db_user=None, db_password=None, db_name=None):
+def export_results(db_host=None, db_port=None, db_user=None, db_password=None, db_name=None, since=None, until=None):
     """Export results from PostgreSQL to CSV."""
     cmd = [sys.executable, os.path.join(PROJECT_ROOT, "analysis", "export_results.py")]
 
@@ -50,14 +81,12 @@ def export_results(db_host=None, db_port=None, db_user=None, db_password=None, d
         cmd.extend(["--password", db_password])
     if db_name:
         cmd.extend(["--db", db_name])
+    if since:
+        cmd.extend(["--since", since])
+    if until:
+        cmd.extend(["--until", until])
 
-    env = os.environ.copy()
-    if "POSTGRES_HOST" in env:
-        pass
-    if "POSTGRES_PASS" in env:
-        pass
-
-    log.info("Exporting results from %s...", db_host or os.environ.get("POSTGRES_HOST", "localhost"))
+    log.info("Exporting results from %s (since=%s, until=%s)...", db_host or os.environ.get("POSTGRES_HOST", "localhost"), since or "all", until or "all")
     subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
 
 
@@ -72,7 +101,8 @@ def experiment_calibration(args):
     """A) Calibrate C: measure throughput at different rates with N=1."""
     rates = [int(r) for r in args.rates.split(",")]
     for rate in rates:
-        log.info("=== Calibration: rate=%d msg/s ===", rate)
+        experiment_start = datetime.now(timezone.utc).isoformat()
+        log.info("=== Calibration: rate=%d msg/s (start=%s) ===", rate, experiment_start)
         run_loadgen({
             "LOAD_MODE": "numbered",
             "LOAD_LOW_RATE": str(rate),
@@ -84,12 +114,17 @@ def experiment_calibration(args):
             "LOAD_T5_COOLDOWN_S": "0",
             "LOAD_SPIKE_BURSTS": "0",
         }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
+        experiment_end = datetime.now(timezone.utc).isoformat()
+        wait_for_queue_drain(args.rabbitmq_host, args.rabbitmq_user, args.rabbitmq_password,
+                             timeout=args.drain_wait)
         export_results(
             db_host=args.pg_host,
             db_port=args.pg_port,
             db_user=args.pg_user,
             db_password=args.pg_password,
             db_name=args.pg_db,
+            since=experiment_start,
+            until=experiment_end,
         )
     generate_plots()
 
@@ -98,7 +133,8 @@ def experiment_speedup(args):
     """B) Speedup: vary worker count, measure throughput."""
     workers = [int(w) for w in args.workers.split(",")]
     for i, n in enumerate(workers):
-        log.info("=== Speedup run %d/%d: workers=%d ===", i + 1, len(workers), n)
+        experiment_start = datetime.now(timezone.utc).isoformat()
+        log.info("=== Speedup run %d/%d: workers=%d (start=%s) ===", i + 1, len(workers), n, experiment_start)
         run_loadgen({
             "LOAD_MODE": "numbered",
             "LOAD_LOW_RATE": str(args.rate),
@@ -110,21 +146,25 @@ def experiment_speedup(args):
             "LOAD_T5_COOLDOWN_S": "0",
             "LOAD_SPIKE_BURSTS": "0",
         }, duration=120, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
-        time.sleep(10)
+        experiment_end = datetime.now(timezone.utc).isoformat()
+        wait_for_queue_drain(args.rabbitmq_host, args.rabbitmq_user, args.rabbitmq_password,
+                             timeout=args.drain_wait)
         export_results(
             db_host=args.pg_host,
             db_port=args.pg_port,
             db_user=args.pg_user,
             db_password=args.pg_password,
             db_name=args.pg_db,
+            since=experiment_start,
+            until=experiment_end,
         )
-        time.sleep(5)
     generate_plots()
 
 
 def experiment_stress(args):
     """C) Stress: increasing load to find saturation point."""
-    log.info("=== Stress test: workers=%d max-rate=%d ===", args.workers, args.max_rate)
+    experiment_start = datetime.now(timezone.utc).isoformat()
+    log.info("=== Stress test: workers=%d max-rate=%d (start=%s) ===", args.workers, args.max_rate, experiment_start)
     run_loadgen({
         "LOAD_MODE": "numbered",
         "LOAD_LOW_RATE": "50",
@@ -136,19 +176,25 @@ def experiment_stress(args):
         "LOAD_T5_COOLDOWN_S": "30",
         "LOAD_SPIKE_BURSTS": "2",
     }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
+    experiment_end = datetime.now(timezone.utc).isoformat()
+    wait_for_queue_drain(args.rabbitmq_host, args.rabbitmq_user, args.rabbitmq_password,
+                         timeout=args.drain_wait)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
         db_user=args.pg_user,
         db_password=args.pg_password,
         db_name=args.pg_db,
+        since=experiment_start,
+        until=experiment_end,
     )
     generate_plots()
 
 
 def experiment_elasticity(args):
     """D) Elasticity: full Z(t) with autoscaling."""
-    log.info("=== Elasticity test: Z(t) full ===")
+    experiment_start = datetime.now(timezone.utc).isoformat()
+    log.info("=== Elasticity test: Z(t) full (start=%s) ===", experiment_start)
     run_loadgen({
         "LOAD_MODE": "numbered",
         "LOAD_LOW_RATE": "50",
@@ -160,12 +206,17 @@ def experiment_elasticity(args):
         "LOAD_T5_COOLDOWN_S": "60",
         "LOAD_SPIKE_BURSTS": "3",
     }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
+    experiment_end = datetime.now(timezone.utc).isoformat()
+    wait_for_queue_drain(args.rabbitmq_host, args.rabbitmq_user, args.rabbitmq_password,
+                         timeout=args.drain_wait)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
         db_user=args.pg_user,
         db_password=args.pg_password,
         db_name=args.pg_db,
+        since=experiment_start,
+        until=experiment_end,
     )
     generate_plots()
 
@@ -174,7 +225,8 @@ def experiment_contention(args):
     """E) Contention: uniform vs hotspot."""
     hotspot_pct = args.hotspot_pct
     hotspot_traffic = args.hotspot_traffic
-    log.info("=== Contention test: hotspot_pct=%.0f%%, traffic=%.0f%% ===", hotspot_pct, hotspot_traffic)
+    experiment_start = datetime.now(timezone.utc).isoformat()
+    log.info("=== Contention test: hotspot_pct=%.0f%%, traffic=%.0f%% (start=%s) ===", hotspot_pct, hotspot_traffic, experiment_start)
     run_loadgen({
         "LOAD_MODE": "numbered",
         "LOAD_HOTSPOT_PCT_SEATS": str(hotspot_pct),
@@ -188,12 +240,17 @@ def experiment_contention(args):
         "LOAD_T5_COOLDOWN_S": "30",
         "LOAD_SPIKE_BURSTS": "0",
     }, rabbitmq_host=args.rabbitmq_host, rabbitmq_user=args.rabbitmq_user, rabbitmq_password=args.rabbitmq_password)
+    experiment_end = datetime.now(timezone.utc).isoformat()
+    wait_for_queue_drain(args.rabbitmq_host, args.rabbitmq_user, args.rabbitmq_password,
+                         timeout=args.drain_wait)
     export_results(
         db_host=args.pg_host,
         db_port=args.pg_port,
         db_user=args.pg_user,
         db_password=args.pg_password,
         db_name=args.pg_db,
+        since=experiment_start,
+        until=experiment_end,
     )
     generate_plots()
 
@@ -210,6 +267,8 @@ def main():
     parser.add_argument("--workers-max", type=int, default=20)
     parser.add_argument("--hotspot-pct", type=float, default=5.0)
     parser.add_argument("--hotspot-traffic", type=float, default=80.0)
+    parser.add_argument("--drain-wait", type=int, default=120,
+                        help="Max seconds to wait for RabbitMQ queue to drain after loadgen (default: 120)")
     parser.add_argument("--pg-host", default=os.environ.get("POSTGRES_HOST"))
     parser.add_argument("--pg-port", type=int, default=int(os.environ.get("POSTGRES_PORT", "5432")))
     parser.add_argument("--pg-db", default=os.environ.get("POSTGRES_DB", "ticketdb"))

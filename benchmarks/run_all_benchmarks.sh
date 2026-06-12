@@ -16,31 +16,21 @@ mkdir -p "$RESULTS_DIR"
 cleanup() {
     echo "=== Cleaning environment ==="
     
-    # Purgar colas RabbitMQ y limpiar PostgreSQL
-    echo "Running cleanup..."
+    echo "Running cleanup (drain + force + retry)..."
     python3 cleanup.py \
         --pg-host "$PG_HOST" \
         --pg-user "$PG_USER" \
         --pg-password "$PG_PASSWORD" \
         --rabbitmq-host "$RABBITMQ_HOST" \
         --rabbitmq-user "$RABBITMQ_USER" \
-        --rabbitmq-password "$RABBITMQ_PASSWORD"
+        --rabbitmq-password "$RABBITMQ_PASSWORD" \
+        --drain --drain-timeout 120 --force --retry 2
     
-    # Verificar que las colas están vacías
-    echo "Verifying queues are empty..."
-    for i in {1..10}; do
-        queue_status=$(curl -s -u "$RABBITMQ_USER:$RABBITMQ_PASSWORD" \
-            "http://$RABBITMQ_HOST:15672/api/queues/%2F/tickets.buy" 2>/dev/null | \
-            grep -o '"messages":[0-9]*' | cut -d: -f2 || echo "999")
-        
-        if [ "$queue_status" = "0" ] || [ "$queue_status" = "" ]; then
-            echo "Queue is empty"
-            break
-        fi
-        
-        echo "Queue has $queue_status messages, waiting... ($i/10)"
-        sleep 3
-    done
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "ERROR: Cleanup failed. Aborting."
+        exit 1
+    fi
     
     echo "Cleanup complete"
 }
