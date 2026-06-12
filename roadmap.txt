@@ -301,7 +301,7 @@ single-flight; con prefetch>1 y solape de E/S, C sube (lo medimos, sección 6).
                         v                                    v
         +-------------------------------+        +------------------------+
         |  CloudWatch (métricas, logs)  |        |  S3 (resultados, logs, |
-        |  - backlog, msgs/s, workers   |        |   plots, exports CSV)  |
+        |  - backlog, msgs/s, workers   |        |   plots, results CSV)  |
         |  - latencias p50/p95/p99      |        +------------------------+
         +---------------+---------------+
                         ^
@@ -334,7 +334,7 @@ sustituto de la cola. Lo dejamos opcional.)
   Management API de RabbitMQ y publica una métrica custom "BacklogPerWorker" en
   CloudWatch. Application Auto Scaling (target tracking) sobre esa métrica ajusta
   desired count del servicio ECS.
-- S3: bucket para resultados/exports/plots; lifecycle para limpieza.
+- S3: bucket para resultados/results/plots; lifecycle para limpieza.
 - CloudWatch: dashboard con backlog vs tiempo, workers vs tiempo, throughput,
   latencias; log groups de los workers.
 - IAM: roles de tarea ECS (acceso a Secrets/SSM, S3, CloudWatch), rol Lambda

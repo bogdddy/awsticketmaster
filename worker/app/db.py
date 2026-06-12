@@ -37,7 +37,9 @@ def check_idempotent(conn, request_id):
         )
         row = cur.fetchone()
         if row:
+            conn.rollback()
             return row[0]
+    conn.rollback()
     return None
 
 

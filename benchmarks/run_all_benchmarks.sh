@@ -4,18 +4,20 @@ set -e
 PG_HOST="10.0.1.20"
 PG_USER="ticketapp"
 PG_PASSWORD="ddd"
+PG_DB="ticketdb"
 RABBITMQ_HOST="10.0.1.10"
 RABBITMQ_USER="admin"
 RABBITMQ_PASSWORD="ddd"
 
-RESULTS_DIR="./results"
+RESULTS_DIR="./benchmark_results"
+EXPORTS_DIR="./results"
 mkdir -p "$RESULTS_DIR"
 
 cleanup() {
     echo "=== Cleaning environment ==="
     
-    # Purgar colas RabbitMQ
-    echo "Purging RabbitMQ queues..."
+    # Purgar colas RabbitMQ y limpiar PostgreSQL
+    echo "Running cleanup..."
     python3 cleanup.py \
         --pg-host "$PG_HOST" \
         --pg-user "$PG_USER" \
@@ -40,44 +42,6 @@ cleanup() {
         sleep 3
     done
     
-    # Verificar que no hay transacciones bloqueadas en PostgreSQL
-    echo "Checking for blocked transactions..."
-    blocked=$(python3 << EOF
-import psycopg2
-try:
-    conn = psycopg2.connect(host='$PG_HOST', user='$PG_USER', password='$PG_PASSWORD', dbname='$PG_DB', connect_timeout=5)
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT COUNT(*) FROM pg_stat_activity 
-        WHERE datname = '$PG_DB' 
-        AND state = 'idle in transaction'
-        AND age(clock_timestamp(), query_start) > interval '10 seconds'
-    """)
-    count = cur.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print("0")
-EOF
-)
-    
-    if [ "$blocked" != "0" ] && [ "$blocked" != "" ]; then
-        echo "WARNING: $blocked blocked transactions detected. Killing them..."
-        python3 << EOF
-import psycopg2
-conn = psycopg2.connect(host='$PG_HOST', user='postgres', password='$PG_PASSWORD', dbname='$PG_DB', connect_timeout=5)
-cur = conn.cursor()
-cur.execute("""
-    SELECT pg_terminate_backend(pid)
-    FROM pg_stat_activity
-    WHERE datname = '$PG_DB' AND pid <> pg_backend_pid()
-""")
-conn.close()
-print("Blocked transactions terminated")
-EOF
-        sleep 2
-    fi
-    
     echo "Cleanup complete"
 }
 
@@ -87,16 +51,13 @@ save_results() {
     local dest="$RESULTS_DIR/$experiment/$run_name"
     mkdir -p "$dest"
     
-    # Buscar CSVs en exports/ o en el directorio actual
-    if [ -d "exports" ] && [ "$(ls -A exports/*.csv 2>/dev/null)" ]; then
-        cp exports/*.csv "$dest/"
-        echo "Results saved to $dest"
-    elif [ "$(ls -A *.csv 2>/dev/null)" ]; then
-        cp *.csv "$dest/"
+    # Buscar CSVs en results/ (donde export_results.py los guarda)
+    if [ -d "$EXPORTS_DIR" ] && [ "$(ls -A $EXPORTS_DIR/*.csv 2>/dev/null)" ]; then
+        cp $EXPORTS_DIR/*.csv "$dest/"
         echo "Results saved to $dest"
     else
-        echo "Warning: No CSV files found to copy"
-        ls -la
+        echo "Warning: No CSV files found in $EXPORTS_DIR"
+        ls -la $EXPORTS_DIR 2>/dev/null || echo "Directory $EXPORTS_DIR does not exist"
     fi
 }
 
@@ -268,7 +229,7 @@ save_results "contention" "hotspot_80_5"
 
 echo ""
 echo "=========================================="
-echo "All experiments complete!"
+echo "All benchmarks complete!"
 echo "=========================================="
 echo "End time: $(date)"
 echo ""
@@ -276,8 +237,8 @@ echo "Results saved to: $RESULTS_DIR/"
 echo ""
 echo "Next steps:"
 echo "1. Copy results to your local machine:"
-echo "   scp -r user@loadgen:/path/to/results/ ./results/"
+echo "   scp -r user@loadgen:/path/to/benchmark_results/ ./benchmark_results/"
 echo ""
 echo "2. Generate plots:"
 echo "   cd analysis"
-echo "   python3 plot_results.py --input-dir ../experiments/results --output-dir ./plots"
+echo "   python3 plot_results.py --input-dir ../benchmarks/benchmark_results --output-dir ./plots"

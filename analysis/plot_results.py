@@ -5,7 +5,7 @@ Generate the 3 required plots from exported CSV data:
   (c) Latency Percentiles (p50/p95/p99 over time)
 
 Usage:
-    python plot_results.py --input-dir ./exports --output-dir ./plots
+    python plot_results.py --input-dir ./results --output-dir ./plots
 """
 import argparse
 import os
@@ -39,7 +39,7 @@ def plot_throughput_vs_workers(results_csv, summary_csv, output_dir):
     throughput_by_minute = df.groupby("finish_minute").size() / 60.0
 
     if len(throughput_by_minute) < 2:
-        print("Skipping throughput vs workers: need multiple time windows (run experiments at different worker counts)")
+        print("Skipping throughput vs workers: need multiple time windows (run benchmarks at different worker counts)")
         return
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -157,7 +157,7 @@ def plot_latency_percentiles(results_csv, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate plots from exported CSV data")
-    parser.add_argument("--input-dir", default="./exports")
+    parser.add_argument("--input-dir", default="./results")
     parser.add_argument("--output-dir", default="./plots")
     args = parser.parse_args()
 

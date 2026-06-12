@@ -45,7 +45,7 @@
 - [x] Plot generation scripts
 
 ### [x] Phase 6: Experiments
-- [x] `experiments/run_experiment.py`
+- [x] `benchmarks/run_experiment.py`
 
 ### [x] Phase 7: Report
 - [x] `analysis/report.md` + analysis scripts

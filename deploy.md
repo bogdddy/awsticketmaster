@@ -113,7 +113,7 @@ sudo -u postgres psql -d ticketdb -c "SELECT * FROM events;"
 
 ---
 
-## 6. Experimentos
+## 6. Benchmarks
 
 Desde la instancia **loadgen** (conectada por SSM):
 
@@ -124,9 +124,38 @@ pip3 install pika psycopg2-binary
 # Dar permisos a ticketapp en PostgreSQL (desde instancia postgres)
 sudo -u postgres psql -d ticketdb -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ticketapp;"
 
-# Ejecutar experimentos
-cd /path/to/awsticket/experiments
+# Navegar al directorio de benchmarks
+cd /path/to/awsticket/benchmarks
+```
 
+### Opción A: Script automático (recomendado)
+
+Ejecuta todos los benchmarks con cleanup automático entre runs:
+
+```bash
+chmod +x run_all_benchmarks.sh
+./run_all_benchmarks.sh
+```
+
+El script:
+- Ejecuta todos los benchmarks en orden (calibration, speedup, stress, elasticity, contention)
+- Hace cleanup automático entre runs (purga RabbitMQ y PostgreSQL)
+- Guarda resultados en `benchmark_results/<experimento>/<run>/`
+- Pausa en speedup para escalar workers manualmente
+
+**Nota:** Para speedup, abre otra terminal y escala workers:
+
+```bash
+aws ecs update-service \
+  --cluster awsticket-cluster \
+  --service awsticket-worker-svc \
+  --desired-count N \
+  --region us-east-1
+```
+
+### Opción B: Ejecución manual
+
+```bash
 # A) Calibración
 PYTHONPATH=../loadgen python3 run_experiment.py \
   --type calibration \
@@ -141,6 +170,16 @@ PYTHONPATH=../loadgen python3 run_experiment.py \
   --type speedup \
   --workers 1,2,4,8 \
   --rate 300 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
+
+# C) Stress
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type stress \
+  --workers 4 \
+  --max-rate 1000 \
   --pg-host 10.0.1.20 \
   --pg-user ticketapp \
   --pg-password ddd \
@@ -165,7 +204,7 @@ PYTHONPATH=../loadgen python3 run_experiment.py \
   --rabbitmq-host 10.0.1.10
 ```
 
-**Limpiar entre experimentos:**
+**Limpiar entre benchmarks:**
 
 ```bash
 python3 cleanup.py \
@@ -173,6 +212,30 @@ python3 cleanup.py \
   --pg-host 10.0.1.20 \
   --pg-user ticketapp \
   --pg-password ddd
+```
+
+### Estructura de resultados
+
+Los benchmarks generan dos tipos de directorios:
+
+- `results/` - CSVs del último benchmark ejecutado (sobrescribe en cada run)
+- `benchmark_results/` - Archivo histórico de todos los benchmarks
+
+```
+benchmark_results/
+├── calibration/
+│   ├── rate_10/
+│   │   ├── summary.csv
+│   │   ├── throughput_by_minute.csv
+│   │   └── results.csv
+│   ├── rate_50/
+│   └── rate_100/
+├── speedup/
+│   ├── workers_1/
+│   └── ...
+├── stress/
+├── elasticity/
+└── contention/
 ```
 
 ---
@@ -189,15 +252,37 @@ aws logs tail /aws/lambda/awsticket-scaling-controller --follow --region us-east
 
 ## 8. Resultados y plots
 
+Los benchmarks generan CSVs en `results/` (último run) y archivan todo en `benchmark_results/`.
+
+**Generar plots desde benchmark_results:**
+
 ```bash
 cd analysis
 
+# Opción 1: Plot de un benchmark específico
+python3 plot_results.py \
+  --input-dir ../benchmarks/benchmark_results/calibration/rate_10 \
+  --output-dir ./plots/calibration_rate_10
+
+# Opción 2: Plot del último benchmark ejecutado
+python3 plot_results.py \
+  --input-dir ../benchmarks/results \
+  --output-dir ./plots/latest
+
+# Opción 3: Generar todos los plots de benchmark_results
+python3 plot_results.py \
+  --input-dir ../benchmarks/benchmark_results \
+  --output-dir ./plots
+```
+
+**Exportar a S3 (opcional):**
+
+```bash
 export POSTGRES_HOST="10.0.1.20"
 export POSTGRES_PASS="ddd"
 export POSTGRES_USER="ticketapp"
 
 python3 export_results.py --s3-bucket awsticket-results-<account>
-python3 plot_results.py --input-dir ./exports --output-dir ./plots
 ```
 
 ---
@@ -226,7 +311,7 @@ terraform destroy -auto-approve
 - [ ] 3. Docker build + push a ECR
 - [ ] 4. Force new deployment ECS
 - [ ] 5. Verificar RabbitMQ + PostgreSQL
-- [ ] 6. Lanzar experimentos
-- [ ] 7. Exportar resultados a S3 + plots
+- [ ] 6. Ejecutar benchmarks (`run_all_benchmarks.sh` o manual)
+- [ ] 7. Generar plots desde `benchmark_results/`
 - [ ] 8. Dashboard CloudWatch
 - [ ] 9. `terraform destroy`

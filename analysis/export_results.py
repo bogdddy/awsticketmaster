@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--db", default=os.environ.get("POSTGRES_DB", "ticketdb"))
     parser.add_argument("--user", default=os.environ.get("POSTGRES_USER", "ticketapp"))
     parser.add_argument("--password", default=os.environ.get("POSTGRES_PASS", "password"))
-    parser.add_argument("--output-dir", default="./exports")
+    parser.add_argument("--output-dir", default="./results")
     parser.add_argument("--s3-bucket", help="Upload CSVs to S3 bucket")
     args = parser.parse_args()
 
