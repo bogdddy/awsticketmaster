@@ -28,8 +28,7 @@ def purge_rabbitmq(host, user, password):
 def reset_postgres(host, port, db, user, password):
     conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, password=password)
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE results")
-        cur.execute("TRUNCATE processed")
+        cur.execute("TRUNCATE processed CASCADE")
         cur.execute("""
             UPDATE seats
             SET status = 'available', request_id = NULL, reserved_at = NULL, sold_at = NULL
