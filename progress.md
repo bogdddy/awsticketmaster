@@ -53,4 +53,18 @@
 ---
 
 ## Current Status
-**Ready for `terraform apply` in Learner Lab.** Architecture fully restored with data sources, custom resources, and all integrations.
+
+**Infraestructura desplegada y operativa en Learner Lab.**
+
+- [x] `terraform apply` completado
+- [x] RabbitMQ instalado y configurado (vía packagecloud repos)
+- [x] PostgreSQL instalado con schema y datos
+- [x] Worker Docker image construida y subida a ECR
+- [x] ECS service corriendo con `desiredCount=1`
+- [x] Experimentos de calibración ejecutados (10, 50, 100 msg/s)
+- [x] Script `cleanup.py` para reset entre experimentos
+
+**Pendiente:**
+- [ ] Ejecutar experimentos completos (speedup, stress, elasticity, contention)
+- [ ] Generar plots finales
+- [ ] Completar análisis en `report.md` con datos reales

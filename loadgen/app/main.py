@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import pika
 
-from app.config import LoadConfig
+from .config import LoadConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("loadgen")

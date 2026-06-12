@@ -30,7 +30,7 @@ Pipeline: Load Generator → RabbitMQ (EC2) → Workers Fargate (Python) → Pos
 **Coste**: El primario es SPOF y cuello de botella. El speedup es sublineal (Amdahl): el tramo serializado (commit en BD, contención de fila caliente) limita el throughput máximo.
 
 **Si pasáramos a EVENTUAL**:
-- Ganaríamos吞吐量 (no hay punto de serialización único)
+- Ganaríamos throughput (no hay punto de serialización único)
 - Pero abriríamos ventanas de doble venta que habría que reconciliar a posteriori
 - La corrección se degrada: para un sistema de ticketing es inaceptable
 

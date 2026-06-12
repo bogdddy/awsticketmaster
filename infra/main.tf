@@ -159,6 +159,7 @@ module "workers" {
   worker_desired_count  = var.worker_desired_count
   worker_min_count      = var.worker_min_count
   worker_max_count      = var.worker_max_count
+  aws_region            = var.aws_region
 }
 
 # ── Autoscaling Controller ──────────────────────────────────────

@@ -1,30 +1,104 @@
 # Experiments — Plan de validación
 
-## A) Calibración de C (capacidad por worker)
+## Requisitos previos
+
+- RabbitMQ corriendo en `10.0.1.10`
+- PostgreSQL corriendo en `10.0.1.20` con usuario `ticketapp` y permisos
+- Worker ECS activo (`runningCount >= 1`)
+- Dependencias instaladas: `pip3 install pika psycopg2-binary`
+
+## Limpiar entre experimentos
+
 ```bash
-python run_experiment.py --type calibration --workers 1 --rates 10,20,50,100,200
+python3 cleanup.py \
+  --rabbitmq-host 10.0.1.10 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd
+```
+
+---
+
+## A) Calibración de C (capacidad por worker)
+
+Mide el throughput real por worker a diferentes tasas de envío.
+
+```bash
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type calibration \
+  --rates 10,50,100 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 ```
 
 ## B) Throughput vs workers (speedup)
+
+Varía el número de workers y mide el throughput total.
+
 ```bash
-python run_experiment.py --type speedup --workers 1,2,4,8,16 --rate 500
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type speedup \
+  --workers 1,2,4,8,16 \
+  --rate 500 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 ```
 
 ## C) Stress / saturación
+
+Incrementa la carga hasta encontrar el punto de saturación.
+
 ```bash
-python run_experiment.py --type stress --workers 4 --max-rate 1000
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type stress \
+  --workers 4 \
+  --max-rate 1000 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 ```
 
 ## D) Elasticidad (Z(t) completo)
+
+Perfil de carga completo con autoscaling activado.
+
 ```bash
-python run_experiment.py --type elasticity --workers-min 1 --workers-max 20
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type elasticity \
+  --workers-min 1 \
+  --workers-max 20 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 ```
 
 ## E) Contención: uniforme vs hotspot 80/5
+
+Compara distribución uniforme vs hotspot (5% de asientos reciben 80% del tráfico).
+
 ```bash
-# Uniforme
-python run_experiment.py --type contention --hotspot-pct 100
+# Distribución uniforme
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type contention \
+  --hotspot-pct 100 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 
 # Hotspot 80/5
-python run_experiment.py --type contention --hotspot-pct 5 --hotspot-traffic 80
+PYTHONPATH=../loadgen python3 run_experiment.py \
+  --type contention \
+  --hotspot-pct 5 \
+  --hotspot-traffic 80 \
+  --pg-host 10.0.1.20 \
+  --pg-user ticketapp \
+  --pg-password ddd \
+  --rabbitmq-host 10.0.1.10
 ```

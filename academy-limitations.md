@@ -2,7 +2,7 @@
 
 ## Entorno: Learner Lab ($50 credit)
 
-El Learner Lab con credito proporciona permisos amplios. La mayoria de servicios AWS
+El Learner Lab con crédito proporciona permisos amplios. La mayoría de servicios AWS
 funcionan sin restricciones. Solo se usa LabRole/LabInstanceProfile por simplicidad
 en vez de crear roles IAM custom.
 
@@ -35,7 +35,7 @@ en vez de crear roles IAM custom.
 | `events:TagResource` | No poner `tags` en `aws_cloudwatch_event_rule` |
 | `cloudwatch:PutMetricAlarm` | No usar `aws_cloudwatch_metric_alarm`; el Lambda escala directamente |
 
-### Adaptaciones respecto al diseno original del roadmap
+### Adaptaciones respecto al diseño original del roadmap
 
 | Componente | Roadmap original | Learner Lab |
 |---|---|---|
@@ -46,18 +46,18 @@ en vez de crear roles IAM custom.
 | CloudWatch | Metric Alarm + target tracking | Lambda escala directamente via API |
 | Todo lo demas | Igual | Igual |
 
-### Justificacion para la memoria
+### Justificación para la memoria
 
 1. **LabRole en vez de roles custom**: El Learner Lab proporciona LabRole con permisos
    broad. Crear roles adicionales es redundante y consume tiempo del despliegue. Se
-   documenta que en produccion se usarian roles con minimo privilegio.
+   documenta que en producción se usarían roles con mínimo privilegio.
 
-2. **VPC propia sin NAT**: Se crea una VPC dedicada con una subred publica e IGW.
-   Los workers Fargate usan IP publica para acceder a ECR. En produccion se usaria
+2. **VPC propia sin NAT**: Se crea una VPC dedicada con una subred pública e IGW.
+   Los workers Fargate usan IP pública para acceder a ECR. En producción se usaría
    VPC privada + NAT o VPC endpoints.
 
-3. **Workers con IP publica**: Sin NAT Gateways, los workers Fargate necesitan IP
-   publica para acceder a ECR/Docker Hub. En produccion se usaria VPC privada + NAT.
+3. **Workers con IP pública**: Sin NAT Gateways, los workers Fargate necesitan IP
+   pública para acceder a ECR/Docker Hub. En producción se usaría VPC privada + NAT.
 
 4. **EventBridge sin tags**: El Learner Lab no permite `events:TagResource`. Se
    omiten los tags en las reglas EventBridge.

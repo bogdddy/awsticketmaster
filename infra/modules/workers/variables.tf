@@ -86,3 +86,8 @@ variable "worker_max_count" {
   description = "Max workers"
   type        = number
 }
+
+variable "aws_region" {
+  description = "Region de AWS"
+  type        = string
+}

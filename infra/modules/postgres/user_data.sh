@@ -133,6 +133,10 @@ INSERT INTO events (event_id, mode, capacity) VALUES (2, 'unnumbered', 100000)
 
 INSERT INTO inventory (event_id, capacity, sold) VALUES (2, 100000, 0)
     ON CONFLICT (event_id) DO NOTHING;
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $${DB_USER};
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $${DB_USER};
+GRANT USAGE ON SCHEMA public TO $${DB_USER};
 SQL"
 
 echo "PostgreSQL setup complete"
