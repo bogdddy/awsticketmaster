@@ -180,7 +180,7 @@ sudo rabbitmqctl purge_queue tickets.buy
 
 aws ecs describe-services   --cluster awsticket-cluster   --services awsticket-worker-svc   --query "services[0].deployments[*].{Status:status,Desired:desiredCount,Running:runningCount}"   --region us-east-1   --output table
 
-aws ecs update-service --cluster awsticket-cluster --service awsticket-worker-svc --desired-count 2 --region us-east-1
+aws ecs update-service --cluster awsticket-cluster --service awsticket-worker-svc --desired-count N --region us-east-1
 
 ---
 

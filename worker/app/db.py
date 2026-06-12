@@ -94,6 +94,17 @@ def cancel_reservation(conn, event_id, seat_id, request_id):
         return cur.rowcount
 
 
+def sell_seat(conn, event_id, seat_id, request_id):
+    with conn.cursor() as cur:
+        cur.execute(
+            """UPDATE seats
+               SET status = 'sold', request_id = %s, sold_at = NOW()
+               WHERE event_id = %s AND seat_id = %s AND status = 'available'""",
+            (request_id, event_id, seat_id)
+        )
+        return cur.rowcount
+
+
 def decrement_inventory(conn, event_id):
     with conn.cursor() as cur:
         cur.execute(

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import pika
 
 from app.config import Config
-from app.db import Database, check_idempotent, mark_processed, reserve_seat, confirm_seat, cancel_reservation, decrement_inventory
+from app.db import Database, check_idempotent, mark_processed, sell_seat, decrement_inventory
 from app.models import BuyRequest
 
 logging.basicConfig(
@@ -91,32 +91,18 @@ def process_message(ch, method, properties, body):
 
 
 def process_numbered(req):
-    conn = db.get_conn()
-    try:
-        if req.seat_id is None:
-            return "error"
-        reserved = reserve_seat(conn, req.event_id, req.seat_id, str(req.request_id))
-        conn.commit()
-    finally:
-        db.put_conn(conn)
-
-    if reserved == 0:
-        return "rejected"
+    if req.seat_id is None:
+        return "error"
 
     time.sleep(Config.payment_delay_ms / 1000.0)
 
     conn = db.get_conn()
     try:
-        confirmed = confirm_seat(conn, req.event_id, req.seat_id, str(req.request_id))
-        if confirmed == 0:
-            cancel_reservation(conn, req.event_id, req.seat_id, str(req.request_id))
-            conn.commit()
-            return "rejected"
+        sold = sell_seat(conn, req.event_id, req.seat_id, str(req.request_id))
         conn.commit()
+        return "sold" if sold > 0 else "rejected"
     finally:
         db.put_conn(conn)
-
-    return "sold"
 
 
 def process_unnumbered(req):
