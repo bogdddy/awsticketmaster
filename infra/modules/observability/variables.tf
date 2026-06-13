@@ -23,17 +23,6 @@ variable "postgres_instance_id" {
   type        = string
 }
 
-variable "loadgen_instance_id" {
-  description = "Instance ID del loadgen"
-  type        = string
-  default     = null
-}
-
-variable "s3_bucket_id" {
-  description = "ID del bucket S3"
-  type        = string
-}
-
 variable "log_group_name" {
   description = "Nombre del log group de workers"
   type        = string

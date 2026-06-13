@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 import urllib.request
-import urllib.error
 import base64
 from datetime import datetime, timezone
 
@@ -276,8 +275,6 @@ def main():
                         help="Starting rate for stress (0 = auto: 10 msg/s)")
     parser.add_argument("--max-rate", type=int, default=0,
                         help="Peak rate for stress (0 = auto: 60 msg/s)")
-    parser.add_argument("--workers-min", type=int, default=1)
-    parser.add_argument("--workers-max", type=int, default=20)
     parser.add_argument("--elasticity-low", type=int, default=0,
                         help="Low rate for elasticity (0 = auto: 10 msg/s)")
     parser.add_argument("--elasticity-high", type=int, default=0,

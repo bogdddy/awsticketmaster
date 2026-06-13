@@ -46,7 +46,4 @@ variable "rabbitmq_password" {
   sensitive   = true
 }
 
-variable "ami_id" {
-  description = "AMI ID hardcodeado"
-  type        = string
-}
+

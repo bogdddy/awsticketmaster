@@ -1,5 +1,5 @@
 resource "aws_instance" "loadgen" {
-  ami                    = var.ami_id
+  ami                    = "ami-0521cb2d60cfbb1a6"
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.security_group_id]

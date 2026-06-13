@@ -3,7 +3,6 @@ import logging
 import random
 import time
 import signal
-import sys
 import uuid
 from datetime import datetime, timezone
 

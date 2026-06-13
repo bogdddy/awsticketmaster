@@ -102,27 +102,24 @@ El stress test requiere **workers fijos** porque el autoscaler interfiere con lo
 |---|---|---|---|---|---|
 | 4 workers | 4 | 40 | 38 rps | 60s | ❌ Al límite |
 | 8 workers + autoscaler ON | 8 | 80 | 76 rps | 21s | ❌ Interferido |
-| **8 workers + autoscaler OFF** | **8** | **80** | **76 rps** | — | **🟡 Pendiente** |
+| **8 workers + autoscaler OFF** | **8** | **80** | **76 rps** | **26.4s** | **26.0 rps / 7,701 sold (49%)** |
 
-Con 8 workers fijos y rampa 10→80, el pico está cerca de la capacidad máxima (76 rps), permitiendo ver el punto de saturación real de PostgreSQL.
+Con 8 workers fijos y rampa 10→80 msg/s, el sistema alcanzó 26.0 rps de throughput sostenido con p50=26.4s y latencia mínima de 106ms. Se vendieron 7,701 de 15,732 entradas. Duración total: 296s. El punto de saturación teórico es C × N = 9.49 × 8 = 76 rps, pero el sistema se saturó antes por acumulación de backlog durante la rampa.
 
-### D) Elasticidad (Carga Z(t))
+### D) Elasticidad (Carga Z(t)) — ✅ DATOS LIMPIOS (SQS TRIGGER)
 
-El autoscaler tiene una limitación fundamental: la Lambda que decide escalar se ejecuta cada 60s y Fargate tarda ~60-90s en provisionar un worker nuevo. **Tiempo total de respuesta: ~120-150s**. Esto hace imposible responder a rampas de carga rápidas.
+El autoscaler fue migrado de EventBridge (rate 60s) a SQS trigger (~15s), reduciendo el tiempo de detección de 60s a ~15s. Además se añadió un NAT Gateway para estabilizar la conectividad de red de los workers Fargate.
 
-Para mitigarlo:
-- **Rampa de 600s** (10 min) en vez de 60s — da tiempo al autoscaler para reaccionar
-- **workers_min=4** — capacidad base para absorber el inicio de la rampa
-- **Escalado predictivo** — la Lambda usa la derivada del backlog para adelantarse a la curva
+**Resultados con la configuración final:**
 
-| Parámetro | Valor |
-|---|---|
-| Rampa (T2) | **600s** |
-| Workers min | **4** |
-| Lambda interval | 60s (mínimo de EventBridge) |
-| Escalado | Rate + backlog + derivada del backlog |
+| Run | Throughput (rps) | p50 (s) | p95 (s) | Vendidos | Duración |
+|---|---|---|---|---|---|
+| Run 1 | ~13.7 | 1.0 | 46.2 | 15,624 | ~18 min |
+| Run 2 | ~14.0 | 1.1 | 38.5 | 15,915 | ~18 min |
 
-**Pendiente de re-ejecutar.** Con 600s de rampa, el autoscaler tiene ~4 ciclos completos (4 × 60s = 240s de detección + 90s de provisioning = 330s) antes del pico de carga. Suficiente margen teórico.
+**Mejora respecto a la versión anterior:** el p95 mejoró 7× (de 331s a 46s) y las ventas aumentaron un +31%. El autoscaler ahora responde en ~15s (SQS trigger) + 60-90s (Fargate provisioning) = **~75-105s total**, suficiente para seguir rampas lentas.
+
+**Cuello de botella restante:** Fargate provisioning (60-90s). Mientras un worker se provisiona, el backlog crece. Para cargas súbitas se necesitaría provisioned concurrency o keep-alive de workers.
 
 ### E) Contención (Uniforme vs Hotspot) — ✅ DATOS LIMPIOS
 
@@ -151,18 +148,18 @@ Los 3 plots requeridos se generan con `benchmarks/analysis/plot_results.py`:
 
 ## Limitación del Autoscaler (documentada)
 
-El autoscaler usa una Lambda que consulta RabbitMQ cada 60s y ajusta el desired count del servicio ECS. Sin embargo:
+El autoscaler usa una Lambda que consulta RabbitMQ y ajusta el desired count del servicio ECS. El trigger actual es SQS (~15s), sustituyendo al anterior EventBridge (60s). Sin embargo:
 
 ```
-EventBridge: rate(1 minute) mínimo permitido
-  → Lambda detecta backlog cada 60s
+SQS trigger (~15s)
+  → Lambda detecta backlog cada ~15s
     → Llama a ECS update_service
       → Fargate provisiona nuevo worker en 60-90s
         → Worker empieza a consumir mensajes
-Tiempo total: ~120-150s desde que aumenta la carga
+Tiempo total: ~75-105s desde que aumenta la carga
 ```
 
-Esta latencia es inherente a AWS Fargate + EventBridge. Para mitigarla:
+Esta latencia es inherente a AWS Fargate (provisioning). Para mitigarla:
 - Escalado predictivo usando la derivada del backlog (adelantarse a la curva)
 - Rampas de carga lentas (≥600s) para dar tiempo al autoscaler
 - Workers mínimos (4) para absorber carga base
@@ -173,7 +170,7 @@ Esta latencia es inherente a AWS Fargate + EventBridge. Para mitigarla:
 
 ## Análisis de Cuellos de Botella
 
-1. **Autoscaler: latencia de provisioning** — El autoscaler Lambda se ejecuta cada 60s (mínimo permitido por EventBridge). Fargate tarda 60-90s en arrancar un nuevo worker. El tiempo total de respuesta es ~120-150s, lo que hace imposible responder a rampas de carga de menos de 2-3 minutos. Para rampas lentas (≥600s) el sistema escala correctamente usando backlog + derivada. Esta es una limitación de AWS Fargate + EventBridge, no del diseño de la aplicación.
+1. **Autoscaler: latencia de provisioning** — El autoscaler Lambda usa SQS trigger (~15s). Fargate tarda 60-90s en arrancar un nuevo worker. El tiempo total de respuesta es ~75-105s, lo que hace imposible responder a rampas de carga de menos de 1-2 minutos. Para rampas lentas (≥600s) el sistema escala correctamente usando backlog + derivada. Esta es una limitación de AWS Fargate, no del diseño de la aplicación.
 
 2. **PostgreSQL UPDATE row-lock contention** — Cuello de botella secundario. El hotspot 80/5 reduce el throughput 1.31× vs uniforme (medido con datos limpios). Cada UPDATE condicional requiere bloqueo de fila, serializando operaciones sobre el mismo asiento.
 
@@ -217,10 +214,10 @@ Además:
 | Calibración rate_10/50 | ✅ **Limpio** | 014350 | C=9.49 rps, latencia 108ms |
 | **Speedup** | ✅ **Limpio** | 014350 | 4.81→9.30→17.08→30.46 rps, eficiencia 100%→79% |
 | **Contención** | ✅ **Limpio** | **064029** | Uniforme 23.55 rps / Hotspot 17.82 rps. Ratio **1.32×**. p50=107ms |
-| **Stress** | 🟡 **Pendiente** | — | 8 workers + autoscaler OFF + max_rate=80 |
-| **Elasticidad** | 🟡 **Pendiente** | — | Rampa 600s + workers_min=4 + escalado predictivo |
+| **Stress** | ❌ **Parcial (backlog)** | 044238 | 26.0 rps, p50=26.4s, 7,701/15,732 vendidos |
+| **Elasticidad** | ✅ **Limpio (SQS trigger)** | Run1/Run2 | ~14 rps, p95=46s, 15,900 vendidos |
 
-**Resumen para el informe**: calibración, speedup y contención tienen datos limpios y publicables. Stress requiere desactivar el autoscaler para obtener datos no interferidos. Elasticidad requiere rampa muy lenta (600s) para compensar la latencia de provisioning de Fargate (~120-150s). La limitación del autoscaler está documentada en la sección correspondiente.
+**Resumen para el informe**: calibración, speedup y contención tienen datos limpios y publicables. Stress tiene datos parciales (backlog acumulado durante la rampa), útiles para el análisis de saturación pero no para régimen estacionario. Elasticidad tiene datos limpios tras la migración a SQS trigger. La limitación del autoscaler está documentada en la sección correspondiente.
 
 ---
 

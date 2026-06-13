@@ -325,19 +325,30 @@ What overheads could fault tolerance introduce?
 
 Is there a point where increased reliability significantly reduces throughput?
 
-mensajes profesor:
-Recomiendo entonces que en la práctica 2 utiliceis un RabbitMQ en una VM para los eventos en vez de SQS.
+---
+## Appendix: Instructor Guidance
 
-De esta manera, creareis script en la VM que irá lanzando lambdas (workers) siguiendo la formula.
+Recomiendo entonces que en la práctica 2 utiliceis un RabbitMQ en una VM
+para los eventos en vez de SQS.
 
-Para apagar workers, podeis mandar un mensaje QUIT a la cola y que la lambda se apague al recibirlo.
+De esta manera, creareis script en la VM que irá lanzando lambdas (workers)
+siguiendo la formula.
 
-;
+Para apagar workers, podeis mandar un mensaje QUIT a la cola y que la
+lambda se apague al recibirlo.
 
-Hasta ahora parece que el problema fundamental está en lanzar cargas intensivas contra SQS o DynamoDB. Estos servicios gestionados parecen tener límites muy estrictos.
+---
 
-La solución para evitar problemas es usar EC2 VMs para los servicios que necesiteis. En vez de SQS, usad RabbitMQ, y en vez de DynamoDB, usad PostgreSQL. Esto debería evitar los problemas de desactivación.
+Hasta ahora parece que el problema fundamental está en lanzar cargas
+intensivas contra SQS o DynamoDB. Estos servicios gestionados parecen
+tener límites muy estrictos.
 
-Al final, lo que más nos interesa es que demostreis la elasticidad de vuesrta solución en la nube siguiendo la fórmula.
+La solución para evitar problemas es usar EC2 VMs para los servicios que
+necesiteis. En vez de SQS, usad RabbitMQ, y en vez de DynamoDB, usad
+PostgreSQL. Esto debería evitar los problemas de desactivación.
 
-En las limitaciones de AWS Academy comenta que solo podeis lanzar 10 funciones lambda.
+Al final, lo que más nos interesa es que demostreis la elasticidad de
+vuesrta solución en la nube siguiendo la fórmula.
+
+En las limitaciones de AWS Academy comenta que solo podeis lanzar 10
+funciones lambda.

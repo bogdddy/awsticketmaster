@@ -137,14 +137,15 @@ echo "=========================================="
 echo "C) STRESS - Finding saturation point"
 echo "=========================================="
 echo "Desactivando autoscaler para stress..."
-aws events disable-rule --name awsticket-scaling-schedule --region "$AWS_REGION" 2>/dev/null || true
+SCALING_UUID=$(aws lambda list-event-source-mappings --function-name awsticket-scaling-controller --region "$AWS_REGION" --query "EventSourceMappings[0].UUID" --output text)
+aws lambda update-event-source-mapping --uuid "$SCALING_UUID" --no-enabled --region "$AWS_REGION" 2>/dev/null || true
 sleep 5
 scale_workers 8
 cleanup
 PYTHONPATH=../loadgen python3 run_experiment.py --type stress --workers 8 $BASE_OPTS
 save_results "stress" "max_rate_60"
 echo "Reactivando autoscaler..."
-aws events enable-rule --name awsticket-scaling-schedule --region "$AWS_REGION" 2>/dev/null || true
+aws lambda update-event-source-mapping --uuid "$SCALING_UUID" --enabled --region "$AWS_REGION" 2>/dev/null || true
 
 # ==========================================
 # D) ELASTICITY (autoscaling 1->20)

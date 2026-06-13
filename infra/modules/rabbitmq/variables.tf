@@ -41,11 +41,6 @@ variable "rabbitmq_password" {
   sensitive   = true
 }
 
-variable "ami_id" {
-  description = "AMI ID hardcodeado"
-  type        = string
-}
-
 variable "private_ip" {
   description = "IP privada fija para RabbitMQ"
   type        = string

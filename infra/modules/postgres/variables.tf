@@ -50,11 +50,6 @@ variable "vpc_cidr" {
   type        = string
 }
 
-variable "ami_id" {
-  description = "AMI ID hardcodeado"
-  type        = string
-}
-
 variable "private_ip" {
   description = "IP privada fija para PostgreSQL"
   type        = string

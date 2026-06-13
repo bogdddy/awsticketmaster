@@ -91,3 +91,8 @@ variable "aws_region" {
   description = "Region de AWS"
   type        = string
 }
+
+variable "sqs_queue_url" {
+  description = "URL de la cola SQS para scaling trigger"
+  type        = string
+}

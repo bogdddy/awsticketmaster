@@ -1,5 +1,5 @@
 resource "aws_instance" "rabbitmq" {
-  ami                    = var.ami_id
+  ami                    = "ami-0521cb2d60cfbb1a6"
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   private_ip             = var.private_ip
@@ -25,19 +25,19 @@ resource "aws_instance" "rabbitmq" {
 }
 
 resource "aws_ssm_parameter" "rabbitmq_endpoint" {
-  name  = "/vocalabs/rabbitmq-endpoint"
+  name  = "/${var.project_name}/rabbitmq-endpoint"
   type  = "String"
   value = aws_instance.rabbitmq.private_ip
 }
 
 resource "aws_ssm_parameter" "rabbitmq_user" {
-  name  = "/vocalabs/rabbitmq-user"
+  name  = "/${var.project_name}/rabbitmq-user"
   type  = "SecureString"
   value = var.rabbitmq_user
 }
 
 resource "aws_ssm_parameter" "rabbitmq_password" {
-  name  = "/vocalabs/rabbitmq-password"
+  name  = "/${var.project_name}/rabbitmq-password"
   type  = "SecureString"
   value = var.rabbitmq_password
 }

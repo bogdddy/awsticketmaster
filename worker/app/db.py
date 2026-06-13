@@ -1,5 +1,5 @@
 import psycopg2
-from psycopg2 import pool, extras
+from psycopg2 import pool
 from app.config import Config
 
 
@@ -23,10 +23,6 @@ class Database:
 
     def close_all(self):
         self._pool.closeall()
-
-
-class IdempotencyError(Exception):
-    pass
 
 
 def check_idempotent(conn, request_id):
@@ -59,39 +55,6 @@ def mark_processed(conn, request_id, result, enqueue_ts=None, start_ts=None, fin
                 (request_id, enqueue_ts, start_ts, finish_ts, result, worker_id)
             )
     conn.commit()
-
-
-def reserve_seat(conn, event_id, seat_id, request_id):
-    with conn.cursor() as cur:
-        cur.execute(
-            """UPDATE seats
-               SET status = 'reserved', request_id = %s, reserved_at = NOW()
-               WHERE event_id = %s AND seat_id = %s AND status = 'available'""",
-            (request_id, event_id, seat_id)
-        )
-        return cur.rowcount
-
-
-def confirm_seat(conn, event_id, seat_id, request_id):
-    with conn.cursor() as cur:
-        cur.execute(
-            """UPDATE seats
-               SET status = 'sold', sold_at = NOW()
-               WHERE event_id = %s AND seat_id = %s AND request_id = %s AND status = 'reserved'""",
-            (event_id, seat_id, request_id)
-        )
-        return cur.rowcount
-
-
-def cancel_reservation(conn, event_id, seat_id, request_id):
-    with conn.cursor() as cur:
-        cur.execute(
-            """UPDATE seats
-               SET status = 'available', request_id = NULL, reserved_at = NULL
-               WHERE event_id = %s AND seat_id = %s AND request_id = %s AND status = 'reserved'""",
-            (event_id, seat_id, request_id)
-        )
-        return cur.rowcount
 
 
 def sell_seat(conn, event_id, seat_id, request_id):

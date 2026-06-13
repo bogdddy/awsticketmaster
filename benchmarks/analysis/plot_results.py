@@ -10,10 +10,8 @@ Usage:
 import argparse
 import os
 import sys
-from collections import defaultdict
 
 import pandas as pd
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

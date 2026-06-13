@@ -67,6 +67,41 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+resource "aws_eip" "nat" {
+  domain = "vpc"
+  tags   = { Name = "${var.project_name}-nat-eip" }
+}
+
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+  tags          = { Name = "${var.project_name}-nat" }
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "${var.aws_region}a"
+
+  tags = { Name = "${var.project_name}-private-subnet" }
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = { Name = "${var.project_name}-private-rt" }
+}
+
+resource "aws_route_table_association" "private" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
+
 # ── Locales ──────────────────────────────────────────────────────
 
 locals {
@@ -114,7 +149,6 @@ module "rabbitmq" {
   iam_instance_profile = local.lab_instance_profile
   rabbitmq_user        = var.rabbitmq_user
   rabbitmq_password    = var.rabbitmq_password
-  ami_id               = var.ami_id
   private_ip           = var.rabbitmq_private_ip
 }
 
@@ -133,8 +167,14 @@ module "postgres" {
   db_name              = var.postgres_db_name
   db_user              = var.postgres_user
   db_password          = var.postgres_password
-  ami_id               = var.ami_id
   private_ip           = var.postgres_private_ip
+}
+
+# ── SQS Queue (scaling trigger) ─────────────────────────────────
+
+resource "aws_sqs_queue" "scaling_trigger" {
+  name                       = "${var.project_name}-scaling-trigger"
+  visibility_timeout_seconds = 30
 }
 
 # ── Workers Fargate ─────────────────────────────────────────────
@@ -160,6 +200,7 @@ module "workers" {
   worker_min_count      = var.worker_min_count
   worker_max_count      = var.worker_max_count
   aws_region            = var.aws_region
+  sqs_queue_url         = aws_sqs_queue.scaling_trigger.url
 }
 
 # ── Autoscaling Controller ──────────────────────────────────────
@@ -174,11 +215,12 @@ module "autoscaling" {
   ecs_cluster_name            = module.workers.cluster_name
   ecs_service_name            = module.workers.service_name
   lab_role_arn                = local.lab_role_arn
-  subnet_ids                  = [aws_subnet.public.id]
+  subnet_ids                  = [aws_subnet.private.id]
   security_group_id           = module.security.worker_sg_id
   target_backlog_per_worker   = var.target_backlog_per_worker
   worker_min_count            = var.worker_min_count
   worker_max_count            = var.worker_max_count
+  sqs_queue_arn               = aws_sqs_queue.scaling_trigger.arn
 }
 
 # ── Load Generator EC2 ──────────────────────────────────────────
@@ -195,7 +237,6 @@ module "loadgen" {
   rabbitmq_endpoint    = module.rabbitmq.private_ip
   rabbitmq_user        = var.rabbitmq_user
   rabbitmq_password    = var.rabbitmq_password
-  ami_id               = var.ami_id
 }
 
 # ── CloudWatch Dashboard ────────────────────────────────────────
@@ -208,7 +249,5 @@ module "observability" {
   ecs_service_name     = module.workers.service_name
   rabbitmq_instance_id = module.rabbitmq.instance_id
   postgres_instance_id = module.postgres.instance_id
-  loadgen_instance_id  = module.loadgen.instance_id
-  s3_bucket_id         = module.storage.bucket_id
   log_group_name       = module.workers.log_group_name
 }

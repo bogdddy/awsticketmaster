@@ -25,8 +25,6 @@ aws_access_key_id     = "<ACCESS_KEY>"
 aws_secret_access_key = "<SECRET_KEY>"
 aws_session_token     = "<SESSION_TOKEN>"
 
-ami_id = "<AMI_ID>"
-
 rabbitmq_user     = "admin"
 rabbitmq_password = "tu-password-seguro"
 
@@ -136,17 +134,16 @@ PYTHONPATH=../loadgen python3 run_experiment.py \
   --pg-password ddd \
   --rabbitmq-host 10.0.1.10
 
-# B) Speedup
+# B) Speedup (rate auto-calculado como workers × C × 0.5)
 PYTHONPATH=../loadgen python3 run_experiment.py \
   --type speedup \
   --workers 1,2,4,8 \
-  --rate 300 \
   --pg-host 10.0.1.20 \
   --pg-user ticketapp \
   --pg-password ddd \
   --rabbitmq-host 10.0.1.10
 
-# D) Elasticidad
+# D) Elasticidad (workers_min=4, autoscaler SQS ~15s)
 PYTHONPATH=../loadgen python3 run_experiment.py \
   --type elasticity \
   --pg-host 10.0.1.20 \
@@ -175,21 +172,38 @@ python3 cleanup.py \
   --pg-password ddd
 
 sudo rabbitmqctl purge_queue tickets.buy
-
 ```
 
-aws ecs describe-services   --cluster awsticket-cluster   --services awsticket-worker-svc   --query "services[0].deployments[*].{Status:status,Desired:desiredCount,Running:runningCount}"   --region us-east-1   --output table
+### Escalar workers manualmente:
+```bash
+aws ecs describe-services --cluster awsticket-cluster --services awsticket-worker-svc \
+  --query "services[0].deployments[*].{Status:status,Desired:desiredCount,Running:runningCount}" \
+  --region us-east-1 --output table
 
-aws ecs update-service --cluster awsticket-cluster --service awsticket-worker-svc --desired-count N --region us-east-1
+aws ecs update-service --cluster awsticket-cluster --service awsticket-worker-svc \
+  --desired-count N --region us-east-1
+```
 
 ---
 
-## 7. Autoscaling (automático con EventBridge)
+## 7. Autoscaling (SQS trigger desde workers + NAT Gateway)
 
-El Lambda se ejecuta cada 60s automáticamente. Verificar en CloudWatch Logs:
+Los workers publican un mensaje a SQS cada ~15s, lo que dispara la Lambda de scaling automáticamente. La Lambda está en una subnet privada con salida a internet vía NAT Gateway para poder llamar a las APIs de ECS y CloudWatch. Verificar en CloudWatch Logs:
 
 ```bash
 aws logs tail /aws/lambda/awsticket-scaling-controller --follow --region us-east-1
+```
+
+**Deshabilitar autoscaler para tests de stress:**
+```bash
+SCALING_UUID=$(aws lambda list-event-source-mappings --function-name awsticket-scaling-controller --region us-east-1 --query "EventSourceMappings[0].UUID" --output text)
+aws lambda update-event-source-mapping --uuid "$SCALING_UUID" --no-enabled --region us-east-1
+```
+
+**Reactivar:**
+```bash
+SCALING_UUID=$(aws lambda list-event-source-mappings --function-name awsticket-scaling-controller --region us-east-1 --query "EventSourceMappings[0].UUID" --output text)
+aws lambda update-event-source-mapping --uuid "$SCALING_UUID" --enabled --region us-east-1
 ```
 
 ---

@@ -305,11 +305,11 @@ single-flight; con prefetch>1 y solape de E/S, C sube (lo medimos, sección 6).
         |  - latencias p50/p95/p99      |        +------------------------+
         +---------------+---------------+
                         ^
-                        | publica backlog cada ~30-60s
+                        | mensaje SQS cada ~15s
         +---------------+---------------+
-        |  Controlador de escalado      |  lee Mgmt API de RabbitMQ -> CloudWatch
-        |  (Lambda programada)          |  metric -> ECS target tracking ajusta
-        |                               |  desired count (N = λ/C  o  B/(C·Tr))
+        |  Controlador de escalado      |  consulta RabbitMQ Mgmt API
+        |  (Lambda, SQS trigger)        |  y llama a ECS update_service
+        |                               |  desired = N = λ/C + B/(C·Tr)
         +-------------------------------+
 
 (Opcional, SNS): solo para fan-out a analítica/logging separado, NUNCA como
@@ -330,10 +330,11 @@ sustituto de la cola. Lo dejamos opcional.)
 - ECS Cluster + Fargate Service: task definition del worker (imagen en ECR);
   variables de entorno con endpoints de RabbitMQ y Postgres (vía SSM Parameter
   Store / Secrets Manager para credenciales).
-- Controlador de escalado: Lambda + EventBridge schedule (cada 30-60s) que lee la
-  Management API de RabbitMQ y publica una métrica custom "BacklogPerWorker" en
-  CloudWatch. Application Auto Scaling (target tracking) sobre esa métrica ajusta
-  desired count del servicio ECS.
+- Controlador de escalado: Lambda con trigger SQS (~15s, workers publican a SQS)
+  que lee la Management API de RabbitMQ, calcula desired count, y llama directamente
+  a ECS update_service. Publica métrica "BacklogPerWorker" en CloudWatch con
+  StorageResolution=1. La Lambda está en subnet privada con NAT Gateway para
+  alcanzar APIs de AWS (ECS, CloudWatch).
 - S3: bucket para resultados/results/plots; lifecycle para limpieza.
 - CloudWatch: dashboard con backlog vs tiempo, workers vs tiempo, throughput,
   latencias; log groups de los workers.
@@ -463,8 +464,8 @@ Estructura de módulos propuesta (un solo `terraform apply` despliega todo):
       ecr/               # repositorio de imagen del worker (build/push se hace
                          #   fuera de TF o vía null_resource opcional)
       workers/           # ECS cluster, task definition Fargate, service
-      autoscaling/       # Lambda controladora + EventBridge schedule +
-                         #   métrica custom + Application Auto Scaling policies
+      autoscaling/       # Lambda controladora (SQS trigger ~15s) +
+                         #   métrica custom + NAT Gateway + SQS queue
       loadgen/           # EC2 (o tarea ECS) generador de Z(t)
       observability/     # CloudWatch dashboard, log groups, alarms
       storage/           # bucket S3 (resultados/logs/plots) + lifecycle
@@ -594,9 +595,11 @@ APENDICE A — Despliegue en AWS Academy Learner Lab ($50 credit)
 ================================================================================
 El Learner Lab con credito permite la mayoria de APIs. Solo se adapta:
   - IAM: LabRole + LabInstanceProfile en vez de roles custom.
-  - Red: VPC por defecto (sin NAT Gateways, workers con IP publica).
+  - Red: VPC con NAT Gateway (necesario para que la Lambda de escalado
+    alcance APIs de AWS como ECS y CloudWatch). Workers Fargate con IP publica.
+  - Autoscaler: SQS trigger (~15s) en vez de EventBridge schedule.
 
-El resto de la arquitectura (EC2, ECS, ECR, S3, SSM, EventBridge, CloudWatch, Lambda)
+El resto de la arquitectura (EC2, ECS, ECR, S3, SSM, CloudWatch, Lambda)
 se despliega segun el diseno original del roadmap.
 
 Ver academy-limitations.md para el historial completo de restricciones y el intento

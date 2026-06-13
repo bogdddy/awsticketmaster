@@ -1,10 +1,12 @@
 import json
+import os
 import time
 import signal
-import sys
 import logging
+import threading
 from datetime import datetime, timezone
 
+import boto3
 import pika
 
 from app.config import Config
@@ -19,6 +21,7 @@ log = logging.getLogger("worker")
 
 db = Database()
 running = True
+sqs = boto3.client("sqs", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
 def signal_handler(sig, frame):
@@ -29,6 +32,24 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+
+def sqs_scaling_publisher():
+    if not Config.sqs_queue_url:
+        log.warning("SQS_QUEUE_URL not set, scaling trigger disabled")
+        return
+    while running:
+        try:
+            sqs.send_message(
+                QueueUrl=Config.sqs_queue_url,
+                MessageBody=json.dumps({"worker_id": Config.worker_id, "ts": time.time()}),
+            )
+        except Exception as e:
+            log.error("SQS send error: %s", e)
+        for _ in range(Config.sqs_scaling_interval):
+            if not running:
+                break
+            time.sleep(1)
 
 
 def process_message(ch, method, properties, body):
@@ -128,6 +149,10 @@ def main():
         Config.rabbitmq_host, Config.rabbitmq_port, Config.rabbitmq_queue,
         Config.postgres_host, Config.postgres_port, Config.postgres_db,
     )
+
+    t = threading.Thread(target=sqs_scaling_publisher, daemon=True)
+    t.start()
+    log.info("SQS scaling publisher started (queue=%s, interval=%ss)", Config.sqs_queue_url, Config.sqs_scaling_interval)
 
     credentials = pika.PlainCredentials(Config.rabbitmq_user, Config.rabbitmq_pass)
     params = pika.ConnectionParameters(

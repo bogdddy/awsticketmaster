@@ -39,11 +39,6 @@ variable "subnet_cidr" {
   default     = "10.0.1.0/24"
 }
 
-variable "ami_id" {
-  description = "AMI ID (Amazon Linux 2023)"
-  type        = string
-}
-
 variable "key_name" {
   description = "Key pair EC2 (opcional)"
   type        = string

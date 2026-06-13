@@ -18,6 +18,8 @@ resource "aws_lambda_function" "controller" {
   filename         = data.archive_file.controller.output_path
   source_code_hash = data.archive_file.controller.output_base64sha256
 
+  reserved_concurrent_executions = 1
+
   environment {
     variables = {
       RABBITMQ_HOST  = var.rabbitmq_endpoint
@@ -45,21 +47,17 @@ data "archive_file" "controller" {
   output_path = "${path.module}/controller_payload.zip"
 }
 
-resource "aws_cloudwatch_event_rule" "controller_schedule" {
-  name                = "${var.project_name}-scaling-schedule"
-  schedule_expression = "rate(1 minute)"
+resource "aws_lambda_event_source_mapping" "sqs_trigger" {
+  event_source_arn = var.sqs_queue_arn
+  function_name    = aws_lambda_function.controller.arn
+  batch_size       = 1
+  enabled          = true
 }
 
-resource "aws_cloudwatch_event_target" "controller" {
-  rule      = aws_cloudwatch_event_rule.controller_schedule.name
-  target_id = "${var.project_name}-scaling-controller"
-  arn       = aws_lambda_function.controller.arn
-}
-
-resource "aws_lambda_permission" "allow_eventbridge" {
-  statement_id  = "AllowEventBridge"
+resource "aws_lambda_permission" "allow_sqs" {
+  statement_id  = "AllowSQS"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.controller.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.controller_schedule.arn
+  principal     = "sqs.amazonaws.com"
+  source_arn    = var.sqs_queue_arn
 }

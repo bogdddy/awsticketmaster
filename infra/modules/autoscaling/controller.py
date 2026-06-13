@@ -77,15 +77,24 @@ def get_worker_count():
         return None, None
 
 
-def put_metric(name, value, unit="Count"):
+def put_metric(name, value, unit="Count", storage_resolution=None):
+    metric = {"MetricName": name, "Value": value, "Unit": unit}
+    if storage_resolution:
+        metric["StorageResolution"] = storage_resolution
     cloudwatch.put_metric_data(
         Namespace=NAMESPACE,
-        MetricData=[{"MetricName": name, "Value": value, "Unit": unit}],
+        MetricData=[metric],
     )
 
 
 def handler(event, context):
     global _last_scale_time, _last_scale_direction, _prev_backlog, _prev_arrival_rate
+
+    # SQS trigger — el mensaje es solo un trigger, ignoramos el body
+    records = event.get("Records", [])
+    if not records:
+        print("No SQS records, skipping")
+        return {"status": "no_records"}
 
     now = time.time()
     backlog = get_rabbitmq_backlog()
@@ -117,7 +126,7 @@ def handler(event, context):
     put_metric("Backlog", backlog)
     put_metric("ArrivalRate", arrival_rate, "Count/Second")
     put_metric("WorkerCount", running)
-    put_metric("BacklogPerWorker", backlog_per_worker)
+    put_metric("BacklogPerWorker", backlog_per_worker, storage_resolution=1)
     put_metric("BacklogGrowth", backlog_growth, "Count/Second")
     put_metric("DesiredWorkers", desired)
 

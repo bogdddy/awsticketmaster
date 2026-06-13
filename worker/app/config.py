@@ -19,3 +19,6 @@ class Config:
 
     worker_id = os.environ.get("WORKER_ID", "unknown")
     payment_delay_ms = int(os.environ.get("PAYMENT_DELAY_MS", "100"))
+
+    sqs_queue_url = os.environ.get("SQS_QUEUE_URL", "")
+    sqs_scaling_interval = int(os.environ.get("SQS_SCALING_INTERVAL_S", "15"))

@@ -6,9 +6,9 @@ Sistema distribuido de venta de entradas con consistencia **STRONG** sobre Postg
 Pipeline: Load Generator → RabbitMQ → Workers Fargate → PostgreSQL.
 
 - **C = 9.49 tickets/s por worker** (delay artificial 100ms + overhead 7ms)
-- **Speedup**: 4.89 → 30.59 rps (eficiencia 100% → 79% con 8 workers)
+- **Speedup**: 4.81 → 30.46 rps (eficiencia 100% → 79% con 8 workers)
 - **Contención hotspot**: 1.29× menos throughput vs distribución uniforme
-- **Autoscaler**: limitado por latencia de provisioning de Fargate (~120-150s)
+- **Autoscaler**: limitado por latencia de provisioning de Fargate (~75-105s)
 
 ---
 
@@ -36,12 +36,12 @@ Carga al 50% de capacidad (rate = workers × 5 msg/s), 120s de duración.
 
 | Workers | Rate | Throughput | Speedup | Eficiencia | p50 | p95 |
 |---|---|---|---|---|---|---|
-| 1 | 5 | **4.89 rps** | 1.0× | 100% | 108ms | 111ms |
-| 2 | 10 | **9.31 rps** | 1.90× | 95% | 108ms | 109ms |
-| 4 | 20 | **16.97 rps** | 3.47× | 87% | 108ms | 109ms |
-| 8 | 40 | **30.59 rps** | 6.25× | 78% | 107ms | 109ms |
+| 1 | 5 | **4.81 rps** | 1.0× | 100% | 108ms | 110ms |
+| 2 | 10 | **9.30 rps** | 1.93× | 97% | 108ms | 109ms |
+| 4 | 20 | **17.08 rps** | 3.55× | 89% | 107ms | 109ms |
+| 8 | 40 | **30.46 rps** | 6.33× | 79% | 107ms | 109ms |
 
-**Speedup sublineal (Ley de Amdahl).** La eficiencia cae del 100% al 78% al escalar de 1 a 8 workers. La pérdida del 22% se debe a la serialización en PostgreSQL (row-level lock contention sobre la tabla `seats`). Todas las latencias en ~107-108ms, sin backlog.
+**Speedup sublineal (Ley de Amdahl).** La eficiencia cae del 100% al 79% al escalar de 1 a 8 workers. La pérdida del 21% se debe a la serialización en PostgreSQL (row-level lock contention sobre la tabla `seats`). Todas las latencias en ~107-108ms, sin backlog.
 
 ---
 
@@ -63,19 +63,21 @@ La rampa 10→80 supera la capacidad agregada (76 rps) hacia el final, generando
 
 ## 4. Elasticidad — Carga Z(t)
 
-4 workers mínimo, autoscaler ON (predictivo), rampa 600s, Z(t) 10→50 msg/s.
+4 workers mínimo, autoscaler ON (SQS trigger ~15s + NAT Gateway), rampa 600s, Z(t) 10→50 msg/s.
 
-| Run | Throughput | p50 | Sold | Duración | Éxito |
+| Run | Throughput | p50 | p95 | Sold | Duración |
 |---|---|---|---|---|---|
-| run_1 | 10.52 rps | **27.4s** | 11,979 | 19 min | 33% |
-| run_2 | 10.41 rps | **27.2s** | 11,857 | 19 min | 33% |
+| run_1 | ~13.7 rps | **1.0s** | **46.2s** | 15,624 | 18 min |
+| run_2 | ~14.0 rps | **1.1s** | **38.5s** | 15,915 | 18 min |
 
-**Mejora significativa** vs rampas de 60s (p50=181s → 27s) gracias a:
-- Rampa de 600s: da tiempo al autoscaler a reaccionar
-- Escalado predictivo: usa la derivada del backlog para adelantarse
-- Workers_min=4: capacidad base para absorber inicio de rampa
+**Mejora sustancial vs EventBridge (60s):** p95 bajó de **331s→46s** (7× mejor) y ventas aumentaron **+31%** (11,880→15,900). 
 
-**Causa del backlog residual**: Lambda cada 60s + Fargate 90s = ~150s de lag. El sistema no puede eliminar el backlog generado durante los primeros 2-3 minutos.
+**Qué cambió:**
+- Trigger de Lambda pasó de EventBridge (60s) → **SQS desde workers (~15s)**
+- Se añadió **NAT Gateway** para que la Lambda alcance APIs de AWS (ECS, CloudWatch)
+- Métrica `BacklogPerWorker` con `StorageResolution=1` (high-resolution)
+
+**Backlog residual**: Fargate sigue tardando 60-90s en provisionar, por lo que el lag total es ~75-105s. Para eliminar completamente el backlog haría falta pre-warming de workers.
 
 ---
 
@@ -96,7 +98,7 @@ La rampa 10→80 supera la capacidad agregada (76 rps) hacia el final, generando
 
 | Limitación | Causa | Impacto |
 |---|---|---|
-| **Autoscaler lento** | EventBridge min 60s + Fargate 90s = ~150s lag | Elasticidad no funcional para rampas < 600s |
+| **Autoscaler lento** | SQS trigger ~15s + Fargate 90s = ~105s lag | Elasticidad no funcional para rampas < 600s |
 | **PostgreSQL SPOF** | Instancia única EC2 | Sin HA, failback manual |
 | **Conexiones PG** | max_connections=100, pool=10/worker | 8 workers = 80 conexiones (margen justo) |
 | **Contención hotspot** | UPDATE condicional serializa por fila | Penalty 1.29× en hotspot 80/5 |
@@ -108,9 +110,9 @@ La rampa 10→80 supera la capacidad agregada (76 rps) hacia el final, generando
 | Experimento | Datos | Publicable |
 |---|---|---|
 | Calibración | ✅ C=9.49 rps, p50=107ms | **Sí** |
-| Speedup | ✅ 4.89→30.59 rps, eficiencia 78% | **Sí** |
+| Speedup | ✅ 4.81→30.46 rps, eficiencia 79% | **Sí** |
 | Contención | ✅ Ratio 1.29×, p50=107ms | **Sí** |
 | Stress | ❌ p50=26s (backlog en pico) | Punto saturación: 76 rps teórico |
-| Elasticidad | ⚠️ p50=27s (mejora de 181→27s) | Limitación del autoscaler documentada |
+| Elasticidad | ✅ p50=1s, p95=46s, +31% ventas | **Sí** (con SQS trigger + NAT) |
 
-**El sistema cumple los requisitos de corrección y escalabilidad.** 3 de 5 experimentos con datos limpios. Stress y elasticidad evidencian los límites reales de Fargate + EventBridge, documentados como hallazgos.
+**El sistema cumple los requisitos de corrección y escalabilidad.** 4 de 5 experimentos con datos limpios. El fix del autoscaler (SQS trigger ~15s + NAT Gateway) eliminó el cuello de botella de EventBridge, reduciendo el p95 de 331s→46s y aumentando las ventas un 31%.

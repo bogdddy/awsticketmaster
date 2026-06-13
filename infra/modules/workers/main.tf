@@ -29,6 +29,8 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "POSTGRES_USER",     value = var.postgres_user },
         { name = "POSTGRES_PASS",     value = var.postgres_password },
         { name = "WORKER_ID",         value = "${var.project_name}-worker" },
+        { name = "SQS_QUEUE_URL",     value = var.sqs_queue_url },
+        { name = "AWS_REGION",        value = var.aws_region },
       ]
 
       log_configuration = {

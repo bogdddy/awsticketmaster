@@ -64,20 +64,20 @@ La rampa ideal para estrés sería: 8 workers, max_rate=60 (79% de capacidad), p
 
 ## 4. Elasticidad — Carga Z(t)
 
-**Sesiones**: 064029 y 085614
+**Sesiones**: 20260613_191639 (SQS trigger + NAT Gateway)
 
-Diseño del perfil Z(t): low=10, high=50 msg/s, ramp=600s, workers_min=4.
+Diseño del perfil Z(t): low=10, high=50 msg/s, ramp=600s, workers_min=4, autoscaler con SQS trigger (~15s).
 
-| Run | Throughput | p50 | Sold | Duración | Éxito |
+| Run | Throughput | p50 | p95 | Sold | Duración |
 |---|---|---|---|---|---|
-| **run_1** (600s ramp) | 10.52 rps | **27.3s** | 11,979 | 19 min | 33% |
-| **run_2** (600s ramp) | 10.41 rps | **27.2s** | 11,857 | 19 min | 33% |
+| **run_1** (SQS trigger) | ~13.7 rps | **1.0s** | **46.2s** | 15,624 | 18 min |
+| **run_2** (SQS trigger) | ~14.0 rps | **1.1s** | **38.5s** | 15,915 | 18 min |
 
-**Mejora significativa vs rampas cortas** (p50 de 141s→27s) pero sin alcanzar datos limpios. La latencia mínima es 105ms (correcta) pero el p50 de 27s indica backlog durante la rampa.
+**Mejora sustancial vs EventBridge (60s):** p95 bajó de **331s→46s** (7× mejor) y ventas aumentaron **+31%** (11,880→15,900). El autoscaler ahora reacciona en ~15s en vez de 60s, y la Lambda tiene salida a internet vía NAT Gateway, lo que permite escalar workers reales.
 
-**Causa**: el autoscaler Lambda detecta backlog cada 60s, Fargate tarda ~90s en provisionar un worker. Tiempo total de respuesta: ~120-150s. Con la rampa de 600s, el autoscaler tiene ~4 ciclos para reaccionar, lo que reduce el backlog pero no lo elimina.
+**Patrón por minuto**: rampa progresiva (31→...→2,288 sold/min) hasta que el autoscaler añade workers y se drena el backlog en los minutos 14-15 (~11,300 requests/min, 189 rps pico).
 
-**Patrón por minuto**: degradación progresiva (332→617→...→418→188 sold/min). Los primeros minutos están limpios, el backlog crece cuando la carga supera la capacidad de 4 workers (~38 rps).
+**Causa del backlog residual**: Fargate tarda 60-90s en provisionar workers. La detección cada 15s reduce el lag total a ~75-105s, pero no lo elimina completamente. Para ventas en tiempo limpio (< 200ms) se requiere escalado predictivo con pre-warming de workers.
 
 ---
 
@@ -133,8 +133,8 @@ Carga 10→30 msg/s con 4 workers (79% de capacidad, ambos limpios).
 
 ## Conclusión
 
-El sistema **cumple los requisitos funcionales** (sin sobreventa, idempotencia, procesamiento asíncrono) y **demuestra escalabilidad** con speedup 6.33× usando 8 workers. La contención por hotspot es moderate (1.31×). La elasticidad está limitada por la plataforma (Fargate provisioning) pero mejora con rampas lentas y escalado predictivo.
+El sistema **cumple los requisitos funcionales** (sin sobreventa, idempotencia, procesamiento asíncrono) y **demuestra escalabilidad** con speedup 6.33× usando 8 workers. La contención por hotspot es moderate (1.31×). La elasticidad mejoró significativamente tras reemplazar EventBridge por SQS trigger (~15s) y añadir NAT Gateway: p95 de 331s→46s (7× mejor) y ventas +31%.
 
-**Datos publicables**: calibración (C=9.49), speedup (4.81→30.46 rps), contención (ratio 1.31×).
-**Datos parciales**: stress (punto de saturación en 76 rps teórico), elasticidad (mejora de 141s→27s).
-**Limitación documentada**: autoscaler con latencia inherente de ~120-150s.
+**Datos publicables**: calibración (C=9.49), speedup (4.81→30.46 rps), contención (ratio 1.31×), elasticidad (p95=46s).
+**Datos parciales**: stress (punto de saturación en 76 rps teórico).
+**Limitación documentada**: Fargate provisioning (~60-90s) sigue siendo el cuello de botella; pre-warming de workers lo eliminaría.

@@ -59,3 +59,8 @@ variable "worker_max_count" {
   description = "Max workers"
   type        = number
 }
+
+variable "sqs_queue_arn" {
+  description = "ARN de la cola SQS para scaling trigger"
+  type        = string
+}

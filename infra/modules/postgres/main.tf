@@ -1,5 +1,5 @@
 resource "aws_instance" "postgres" {
-  ami                    = var.ami_id
+  ami                    = "ami-0521cb2d60cfbb1a6"
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   private_ip             = var.private_ip
@@ -35,25 +35,25 @@ resource "aws_instance" "postgres" {
 }
 
 resource "aws_ssm_parameter" "postgres_endpoint" {
-  name  = "/vocalabs/postgres-endpoint"
+  name  = "/${var.project_name}/postgres-endpoint"
   type  = "String"
   value = aws_instance.postgres.private_ip
 }
 
 resource "aws_ssm_parameter" "postgres_user" {
-  name  = "/vocalabs/postgres-user"
+  name  = "/${var.project_name}/postgres-user"
   type  = "SecureString"
   value = var.db_user
 }
 
 resource "aws_ssm_parameter" "postgres_password" {
-  name  = "/vocalabs/postgres-password"
+  name  = "/${var.project_name}/postgres-password"
   type  = "SecureString"
   value = var.db_password
 }
 
 resource "aws_ssm_parameter" "postgres_db" {
-  name  = "/vocalabs/postgres-db-name"
+  name  = "/${var.project_name}/postgres-db-name"
   type  = "String"
   value = var.db_name
 }

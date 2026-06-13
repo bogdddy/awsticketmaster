@@ -28,7 +28,7 @@ EXPORTS_DIR="./results"
 mkdir -p "$RESULTS_DIR"
 
 echo "=========================================="
-echo "AWSTicket - Pending experiments only"
+echo "AWSTicket - Elasticity only (SQS trigger fix)"
 echo "Timestamp: $RUN_TIMESTAMP"
 echo "Results: $RESULTS_DIR"
 echo "=========================================="
@@ -87,65 +87,28 @@ save_results() {
 
 BASE_OPTS="--pg-host $PG_HOST --pg-user $PG_USER --pg-password $PG_PASSWORD --rabbitmq-host $RABBITMQ_HOST --rabbitmq-user $RABBITMQ_USER --rabbitmq-password $RABBITMQ_PASSWORD"
 
-# ===== 1) STRESS (rampa 10->60, 8 workers, autoscaler OFF) =====
+# ===== ELASTICITY run 1 (Z(t) 10->50, min 4 workers, ramp 600s) =====
 echo ""
 echo "=========================================="
-echo "1/5 STRESS - ramp 10->60, 8 workers"
-echo "=========================================="
-echo "Desactivando autoscaler para evitar que interfiera..."
-aws events disable-rule --name awsticket-scaling-schedule --region "$AWS_REGION" 2>/dev/null || true
-sleep 5
-scale_workers 8
-cleanup
-PYTHONPATH=../loadgen python3 run_experiment.py --type stress --workers 8 $BASE_OPTS
-save_results "stress" "max_rate_60"
-echo "Reactivando autoscaler..."
-aws events enable-rule --name awsticket-scaling-schedule --region "$AWS_REGION" 2>/dev/null || true
-
-# ===== 2) ELASTICITY run 1 (Z(t) 10->50, min 4 workers, ramp 600s) =====
-echo ""
-echo "=========================================="
-echo "2/5 ELASTICITY run 1 - Z(t) 10->50, min 4 workers, ramp 600s"
+echo "1/2 ELASTICITY run 1 - Z(t) 10->50, min 4 workers, ramp 600s"
 echo "=========================================="
 scale_workers 4
 cleanup
 PYTHONPATH=../loadgen python3 run_experiment.py --type elasticity --workers-min 4 --workers-max 20 $BASE_OPTS
 save_results "elasticity" "run_1"
 
-# ===== 3) ELASTICITY run 2 (rampa 600s, min 4 workers) =====
+# ===== ELASTICITY run 2 (rampa 600s, min 4 workers) =====
 echo ""
 echo "=========================================="
-echo "3/5 ELASTICITY run 2 - Z(t) 10->50, min 4 workers"
+echo "2/2 ELASTICITY run 2 - Z(t) 10->50, min 4 workers"
 echo "=========================================="
 cleanup
 PYTHONPATH=../loadgen python3 run_experiment.py --type elasticity --workers-min 4 --workers-max 20 $BASE_OPTS
 save_results "elasticity" "run_2"
 
-# ===== 4) CONTENTION uniform (10->30, 4 workers) =====
 echo ""
 echo "=========================================="
-echo "4/5 CONTENTION uniform - 4 workers"
-echo "=========================================="
-scale_workers 4
-cleanup
-PYTHONPATH=../loadgen python3 run_experiment.py --type contention --workers 4 --hotspot-pct 100 --hotspot-traffic 100 $BASE_OPTS
-save_results "contention" "uniform"
-
-# ===== 5) CONTENTION hotspot 80/5 (10->30, 4 workers) =====
-echo ""
-echo "=========================================="
-echo "5/5 CONTENTION hotspot 80/5 - 4 workers"
-echo "=========================================="
-cleanup
-PYTHONPATH=../loadgen python3 run_experiment.py --type contention --workers 4 --hotspot-pct 5 --hotspot-traffic 80 $BASE_OPTS
-save_results "contention" "hotspot_80_5"
-
-echo ""
-echo "=========================================="
-echo "All pending experiments complete!"
+echo "Elasticity experiments complete!"
 echo "Timestamp: $RUN_TIMESTAMP"
 echo "Results saved to: $RESULTS_DIR"
 echo "=========================================="
-echo ""
-echo "To collect all results:"
-echo "  python3 collect_results.py"
