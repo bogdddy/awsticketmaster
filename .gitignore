@@ -58,4 +58,4 @@ results/
 output/
 *.csv
 !loadgen/**/*.csv
-!analysis/**/*.csv
+!benchmarks/analysis/**/*.csv

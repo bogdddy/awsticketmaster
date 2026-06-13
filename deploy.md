@@ -197,14 +197,14 @@ aws logs tail /aws/lambda/awsticket-scaling-controller --follow --region us-east
 ## 8. Resultados y plots
 
 ```bash
-cd analysis
+cd benchmarks/analysis
 
 export POSTGRES_HOST="10.0.1.20"
 export POSTGRES_PASS="ddd"
 export POSTGRES_USER="ticketapp"
 
 python3 export_results.py --s3-bucket awsticket-results-<account>
-python3 plot_results.py --input-dir ./exports --output-dir ./plots
+python3 plot_results.py --input-dir ../benchmark_results --output-dir ./plots
 ```
 
 ---

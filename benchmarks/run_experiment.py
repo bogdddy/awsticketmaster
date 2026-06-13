@@ -14,6 +14,7 @@ import base64
 from datetime import datetime, timezone
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BENCHMARKS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("experiment")
@@ -69,7 +70,7 @@ def run_loadgen(env_overrides: dict, duration: int = None, rabbitmq_host=None, r
 
 def export_results(db_host=None, db_port=None, db_user=None, db_password=None, db_name=None, since=None, until=None):
     """Export results from PostgreSQL to CSV."""
-    cmd = [sys.executable, os.path.join(PROJECT_ROOT, "analysis", "export_results.py")]
+    cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "analysis", "export_results.py")]
 
     if db_host:
         cmd.extend(["--host", db_host])
@@ -87,14 +88,14 @@ def export_results(db_host=None, db_port=None, db_user=None, db_password=None, d
         cmd.extend(["--until", until])
 
     log.info("Exporting results from %s (since=%s, until=%s)...", db_host or os.environ.get("POSTGRES_HOST", "localhost"), since or "all", until or "all")
-    subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
+    subprocess.run(cmd, check=True, cwd=BENCHMARKS_DIR)
 
 
 def generate_plots():
     """Generate plots from exported CSV."""
-    cmd = [sys.executable, os.path.join(PROJECT_ROOT, "analysis", "plot_results.py")]
+    cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "analysis", "plot_results.py")]
     log.info("Generating plots...")
-    subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
+    subprocess.run(cmd, check=True, cwd=BENCHMARKS_DIR)
 
 
 def experiment_calibration(args):
@@ -166,7 +167,7 @@ def experiment_speedup(args):
 def experiment_stress(args):
     """C) Stress: increasing load to find saturation point."""
     low_rate = args.min_rate if args.min_rate else 10
-    high_rate = args.max_rate if args.max_rate else 60
+    high_rate = args.max_rate if args.max_rate else 40
     experiment_start = datetime.now(timezone.utc).isoformat()
     log.info("=== Stress test: workers=%d rate=%d->%d (start=%s) ===", args.workers, low_rate, high_rate, experiment_start)
     run_loadgen({
@@ -232,7 +233,7 @@ def experiment_contention(args):
     hotspot_pct = args.hotspot_pct
     hotspot_traffic = args.hotspot_traffic
     low_rate = args.contention_low if args.contention_low else 10
-    high_rate = args.contention_high if args.contention_high else 40
+    high_rate = args.contention_high if args.contention_high else 30
     experiment_start = datetime.now(timezone.utc).isoformat()
     log.info("=== Contention test: hotspot_pct=%.0f%%, traffic=%.0f%% rate=%d->%d (start=%s) ===", hotspot_pct, hotspot_traffic, low_rate, high_rate, experiment_start)
     run_loadgen({
@@ -274,7 +275,7 @@ def main():
     parser.add_argument("--min-rate", type=int, default=0,
                         help="Starting rate for stress (0 = auto: 10 msg/s)")
     parser.add_argument("--max-rate", type=int, default=0,
-                        help="Peak rate for stress (0 = auto: 60 msg/s)")
+                        help="Peak rate for stress (0 = auto: 40 msg/s)")
     parser.add_argument("--workers-min", type=int, default=1)
     parser.add_argument("--workers-max", type=int, default=20)
     parser.add_argument("--elasticity-low", type=int, default=0,
@@ -286,7 +287,7 @@ def main():
     parser.add_argument("--contention-low", type=int, default=0,
                         help="Low rate for contention (0 = auto: 10 msg/s)")
     parser.add_argument("--contention-high", type=int, default=0,
-                        help="High rate for contention (0 = auto: 40 msg/s)")
+                        help="High rate for contention (0 = auto: 30 msg/s)")
     parser.add_argument("--drain-wait", type=int, default=120,
                         help="Max seconds to wait for RabbitMQ queue to drain after loadgen (default: 120)")
     parser.add_argument("--pg-host", default=os.environ.get("POSTGRES_HOST"))

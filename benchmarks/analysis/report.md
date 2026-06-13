@@ -142,7 +142,7 @@ Carga de 50→300 msg/s durante 180s con hotspot configurable.
 
 ## Plots
 
-Los 3 plots requeridos se generan con `analysis/plot_results.py`:
+Los 3 plots requeridos se generan con `benchmarks/analysis/plot_results.py`:
 - **(a) Throughput vs Workers**: curva de speedup, muestra saturación Postgres
 - **(b) Backlog vs Time**: picos en spikes, drenado por autoscaling
 - **(c) Latency Percentiles**: p50/p95/p99, estabilidad vs carga

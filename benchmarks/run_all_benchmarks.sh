@@ -8,10 +8,23 @@ PG_DB="ticketdb"
 RABBITMQ_HOST="10.0.1.10"
 RABBITMQ_USER="admin"
 RABBITMQ_PASSWORD="ddd"
+ECS_CLUSTER="awsticket-cluster"
+ECS_SERVICE="awsticket-worker-svc"
+AWS_REGION="us-east-1"
+
+# Verifica/instala AWS CLI
+if ! command -v aws &>/dev/null; then
+    echo "AWS CLI no encontrado. Instalando..."
+    curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    ./aws/install
+    rm -rf aws awscliv2.zip
+    echo "AWS CLI instalado"
+fi
 
 RUN_TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 RESULTS_DIR="./benchmark_results/${RUN_TIMESTAMP}"
-EXPORTS_DIR="../results"
+EXPORTS_DIR="./results"
 mkdir -p "$RESULTS_DIR"
 
 echo "Run timestamp: $RUN_TIMESTAMP"
@@ -19,8 +32,6 @@ echo "Results will be saved to: $RESULTS_DIR"
 
 cleanup() {
     echo "=== Cleaning environment ==="
-    
-    echo "Running cleanup (drain + force + retry)..."
     python3 cleanup.py \
         --pg-host "$PG_HOST" \
         --pg-user "$PG_USER" \
@@ -29,14 +40,33 @@ cleanup() {
         --rabbitmq-user "$RABBITMQ_USER" \
         --rabbitmq-password "$RABBITMQ_PASSWORD" \
         --drain --drain-timeout 120 --force --retry 2
-    
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "ERROR: Cleanup failed. Aborting."
         exit 1
     fi
-    
     echo "Cleanup complete"
+}
+
+scale_workers() {
+    local desired=$1
+    echo "=== Scaling ECS workers to $desired ==="
+    aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+        --desired-count "$desired" --region "$AWS_REGION" > /dev/null
+    echo "Waiting for workers to reach $desired..."
+    for i in {1..30}; do
+        local running=$(aws ecs describe-services --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" --region "$AWS_REGION" \
+            --query "services[0].runningCount" --output text)
+        if [ "$running" = "$desired" ]; then
+            echo "Workers ready: $running"
+            return 0
+        fi
+        echo "  runningCount=$running, waiting 10s... ($i/30)"
+        sleep 10
+    done
+    echo "ERROR: Workers did not reach $desired in time"
+    exit 1
 }
 
 save_results() {
@@ -44,8 +74,6 @@ save_results() {
     local run_name=$2
     local dest="$RESULTS_DIR/$experiment/$run_name"
     mkdir -p "$dest"
-    
-    # Buscar CSVs en results/ (donde export_results.py los guarda)
     if [ -d "$EXPORTS_DIR" ] && [ "$(ls -A $EXPORTS_DIR/*.csv 2>/dev/null)" ]; then
         cp $EXPORTS_DIR/*.csv "$dest/"
         echo "Results saved to $dest"
@@ -61,165 +89,98 @@ echo "=========================================="
 echo "Start time: $(date)"
 echo ""
 
+BASE_OPTS="--pg-host $PG_HOST --pg-user $PG_USER --pg-password $PG_PASSWORD --rabbitmq-host $RABBITMQ_HOST --rabbitmq-user $RABBITMQ_USER --rabbitmq-password $RABBITMQ_PASSWORD"
+
 # ==========================================
-# A) CALIBRATION
+# A) CALIBRATION (1 worker)
 # ==========================================
 echo ""
 echo "=========================================="
 echo "A) CALIBRATION - Measuring worker capacity"
 echo "=========================================="
+scale_workers 1
 
 for rate in 10 50 100; do
     echo ""
     echo "--- Calibration: rate=$rate msg/s ---"
     cleanup
-    
-    PYTHONPATH=../loadgen python3 run_experiment.py \
-        --type calibration \
-        --rates "$rate" \
-        --pg-host "$PG_HOST" \
-        --pg-user "$PG_USER" \
-        --pg-password "$PG_PASSWORD" \
-        --rabbitmq-host "$RABBITMQ_HOST" \
-        --rabbitmq-user "$RABBITMQ_USER" \
-        --rabbitmq-password "$RABBITMQ_PASSWORD"
-    
+    PYTHONPATH=../loadgen python3 run_experiment.py --type calibration --rates "$rate" $BASE_OPTS
     save_results "calibration" "rate_${rate}"
     echo "Waiting 10s before next run..."
     sleep 10
 done
 
 # ==========================================
-# B) SPEEDUP
+# B) SPEEDUP (1,2,4,8 workers)
 # ==========================================
 echo ""
 echo "=========================================="
 echo "B) SPEEDUP - Scaling workers"
 echo "=========================================="
-echo "NOTE: You need to manually scale workers between runs"
-echo "Run this from your LOCAL machine:"
-echo "  aws ecs update-service --cluster awsticket-cluster --service awsticket-worker-svc --desired-count N --region us-east-1"
-echo ""
 
 for workers in 1 2 4 8; do
     echo ""
     echo "--- Speedup: workers=$workers ---"
-    echo "ACTION REQUIRED: Scale to $workers workers now"
-    read -p "Press Enter when workers are ready (runningCount=$workers)..."
-    
+    scale_workers "$workers"
     cleanup
-    
-    PYTHONPATH=../loadgen python3 run_experiment.py \
-        --type speedup \
-        --workers "$workers" \
-        --pg-host "$PG_HOST" \
-        --pg-user "$PG_USER" \
-        --pg-password "$PG_PASSWORD" \
-        --rabbitmq-host "$RABBITMQ_HOST" \
-        --rabbitmq-user "$RABBITMQ_USER" \
-        --rabbitmq-password "$RABBITMQ_PASSWORD"
-    
+    PYTHONPATH=../loadgen python3 run_experiment.py --type speedup --workers "$workers" $BASE_OPTS
     save_results "speedup" "workers_${workers}"
     echo "Waiting 15s before next run..."
     sleep 15
 done
 
 # ==========================================
-# C) STRESS
+# C) STRESS (4 workers)
 # ==========================================
 echo ""
 echo "=========================================="
 echo "C) STRESS - Finding saturation point"
 echo "=========================================="
-
+scale_workers 4
 cleanup
-
-PYTHONPATH=../loadgen python3 run_experiment.py \
-    --type stress \
-    --workers 4 \
-    --max-rate 1000 \
-    --pg-host "$PG_HOST" \
-    --pg-user "$PG_USER" \
-    --pg-password "$PG_PASSWORD" \
-    --rabbitmq-host "$RABBITMQ_HOST" \
-    --rabbitmq-user "$RABBITMQ_USER" \
-    --rabbitmq-password "$RABBITMQ_PASSWORD"
-
-save_results "stress" "max_rate_1000"
+PYTHONPATH=../loadgen python3 run_experiment.py --type stress --workers 4 $BASE_OPTS
+save_results "stress" "max_rate_60"
 
 # ==========================================
-# D) ELASTICITY
+# D) ELASTICITY (autoscaling 1->20)
 # ==========================================
 echo ""
 echo "=========================================="
 echo "D) ELASTICITY - Z(t) workload with autoscaling"
 echo "=========================================="
+scale_workers 4
 
 for run in 1 2; do
     echo ""
     echo "--- Elasticity: run $run/2 ---"
     cleanup
-    
-    PYTHONPATH=../loadgen python3 run_experiment.py \
-        --type elasticity \
-        --workers-min 1 \
-        --workers-max 20 \
-        --pg-host "$PG_HOST" \
-        --pg-user "$PG_USER" \
-        --pg-password "$PG_PASSWORD" \
-        --rabbitmq-host "$RABBITMQ_HOST" \
-        --rabbitmq-user "$RABBITMQ_USER" \
-        --rabbitmq-password "$RABBITMQ_PASSWORD"
-    
+    PYTHONPATH=../loadgen python3 run_experiment.py --type elasticity --workers-min 4 --workers-max 20 $BASE_OPTS
     save_results "elasticity" "run_${run}"
     echo "Waiting 20s before next run..."
     sleep 20
 done
 
 # ==========================================
-# E) CONTENTION
+# E) CONTENTION (4 workers)
 # ==========================================
 echo ""
 echo "=========================================="
 echo "E) CONTENTION - Uniform vs Hotspot"
 echo "=========================================="
+scale_workers 4
 
 # Uniform
 echo ""
 echo "--- Contention: Uniform distribution ---"
 cleanup
-
-PYTHONPATH=../loadgen python3 run_experiment.py \
-    --type contention \
-    --workers 4 \
-    --hotspot-pct 100 \
-    --hotspot-traffic 100 \
-    --pg-host "$PG_HOST" \
-    --pg-user "$PG_USER" \
-    --pg-password "$PG_PASSWORD" \
-    --rabbitmq-host "$RABBITMQ_HOST" \
-    --rabbitmq-user "$RABBITMQ_USER" \
-    --rabbitmq-password "$RABBITMQ_PASSWORD"
-
+PYTHONPATH=../loadgen python3 run_experiment.py --type contention --workers 4 --hotspot-pct 100 --hotspot-traffic 100 $BASE_OPTS
 save_results "contention" "uniform"
 
 # Hotspot 80/5
 echo ""
 echo "--- Contention: Hotspot 80/5 ---"
 cleanup
-
-PYTHONPATH=../loadgen python3 run_experiment.py \
-    --type contention \
-    --workers 4 \
-    --hotspot-pct 5 \
-    --hotspot-traffic 80 \
-    --pg-host "$PG_HOST" \
-    --pg-user "$PG_USER" \
-    --pg-password "$PG_PASSWORD" \
-    --rabbitmq-host "$RABBITMQ_HOST" \
-    --rabbitmq-user "$RABBITMQ_USER" \
-    --rabbitmq-password "$RABBITMQ_PASSWORD"
-
+PYTHONPATH=../loadgen python3 run_experiment.py --type contention --workers 4 --hotspot-pct 5 --hotspot-traffic 80 $BASE_OPTS
 save_results "contention" "hotspot_80_5"
 
 echo ""
@@ -231,9 +192,8 @@ echo ""
 echo "Results saved to: $RESULTS_DIR/"
 echo ""
 echo "Next steps:"
-echo "1. Copy results to your local machine:"
-echo "   scp -r user@loadgen:/path/to/benchmark_results/ ./benchmark_results/"
+echo "1. Generate plots:"
+echo "   cd analysis && python3 plot_results.py --input-dir ../benchmark_results --output-dir ./plots"
 echo ""
-echo "2. Generate plots:"
-echo "   cd analysis"
-echo "   python3 plot_results.py --input-dir ../benchmarks/benchmark_results --output-dir ./plots"
+echo "2. Collect summary:"
+echo "   python3 collect_results.py"

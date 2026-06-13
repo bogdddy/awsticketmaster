@@ -111,7 +111,7 @@ for rate in 10 50 100; do
   
   # Guardar resultados (archivo histórico)
   mkdir -p benchmark_results/calibration/rate_${rate}
-  cp ../results/*.csv benchmark_results/calibration/rate_${rate}/
+  cp ./results/*.csv benchmark_results/calibration/rate_${rate}/
   
   sleep 10
 done
@@ -148,7 +148,7 @@ for workers in 1 2 4 8; do
   
   # Guardar resultados
   mkdir -p benchmark_results/speedup/workers_${workers}
-  cp ../results/*.csv benchmark_results/speedup/workers_${workers}/
+  cp ./results/*.csv benchmark_results/speedup/workers_${workers}/
   
   sleep 15
 done
@@ -204,7 +204,7 @@ for run in 1 2; do
   
   # Guardar
   mkdir -p benchmark_results/elasticity/run_${run}
-  cp ../results/*.csv benchmark_results/elasticity/run_${run}/
+  cp ./results/*.csv benchmark_results/elasticity/run_${run}/
   
   sleep 20
 done
@@ -337,7 +337,7 @@ cd /root/urv/sd/awsticket/analysis
 pip3 install matplotlib pandas
 
 # Generar plots (desde un benchmark específico)
-python3 plot_results.py --input-dir ../benchmarks/benchmark_results/calibration/rate_10 --output-dir ./plots
+python3 analysis/plot_results.py --input-dir benchmark_results/calibration/rate_10 --output-dir ./plots
 ```
 
 ### Plots requeridos (Section 13 de specifications.txt)
