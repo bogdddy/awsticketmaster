@@ -32,6 +32,7 @@ NUM_REQUESTS = 500
 HOTSPOT_SEATS_PCT = 10
 HOTSPOT_TRAFFIC_PCT = 80
 NUM_WORKER_THREADS = 8
+_test_request_ids = []
 
 
 def _write_summary_csv(output_dir, success, total_sold, total_requests, issues, elapsed):
@@ -56,8 +57,6 @@ def _write_summary_csv(output_dir, success, total_sold, total_requests, issues, 
 
 def setup_test_db(conn):
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM results WHERE request_id::text LIKE 'test-%%'")
-        cur.execute("DELETE FROM processed WHERE request_id::text LIKE 'test-%%'")
         cur.execute("DELETE FROM seats WHERE event_id = %s", (TEST_EVENT_ID,))
 
         cur.execute(
@@ -118,7 +117,7 @@ def verify_no_oversell(conn):
 
         cur.execute(
             """SELECT outcome, COUNT(*) FROM results
-               WHERE request_id::text LIKE 'test-%%'
+               WHERE worker_id = 'test-worker'
                GROUP BY outcome ORDER BY outcome"""
         )
         print("\n[DISTRIBUCION DE RESULTADOS]:")
@@ -197,8 +196,10 @@ def run_test(pg_host, pg_port, pg_user, pg_pass, pg_db, output_dir):
             seat_id = random.randint(1, NUM_SEATS)
             while seat_id in hot_seats:
                 seat_id = random.randint(1, NUM_SEATS)
+        rid = str(uuid.uuid4())
+        _test_request_ids.append(rid)
         all_requests.append({
-            "request_id": f"test-{uuid.uuid4()}",
+            "request_id": rid,
             "seat_id": seat_id,
         })
 
@@ -241,8 +242,9 @@ def run_test(pg_host, pg_port, pg_user, pg_pass, pg_db, output_dir):
     _write_summary_csv(output_dir, len(issues) == 0, total_sold, NUM_REQUESTS, issues, elapsed)
 
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM results WHERE request_id::text LIKE 'test-%%'")
-        cur.execute("DELETE FROM processed WHERE request_id::text LIKE 'test-%%'")
+        if _test_request_ids:
+            cur.execute("DELETE FROM results WHERE request_id = ANY(%s)", (_test_request_ids,))
+            cur.execute("DELETE FROM processed WHERE request_id = ANY(%s)", (_test_request_ids,))
         cur.execute("DELETE FROM seats WHERE event_id = %s", (TEST_EVENT_ID,))
         cur.execute("DELETE FROM inventory WHERE event_id = %s", (TEST_EVENT_ID,))
         cur.execute("DELETE FROM events WHERE event_id = %s", (TEST_EVENT_ID,))

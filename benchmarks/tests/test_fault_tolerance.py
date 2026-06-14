@@ -106,10 +106,13 @@ def publish_messages(rabbitmq_host, rabbitmq_user, rabbitmq_pass, count, rate):
     published = 0
     interval = 1.0 / rate
     start = time.monotonic()
+    published_ids = []
 
     for i in range(count):
+        rid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{EXPERIMENT_TAG}-{i:04d}"))
+        published_ids.append(rid)
         msg = {
-            "request_id": f"{EXPERIMENT_TAG}-{i:04d}-{uuid.uuid4()}",
+            "request_id": rid,
             "event_id": 1,
             "seat_id": (i % 100000) + 1,
             "mode": "numbered",
@@ -134,18 +137,20 @@ def publish_messages(rabbitmq_host, rabbitmq_user, rabbitmq_pass, count, rate):
 
     connection.close()
     log(f"Publicados {published}/{count} mensajes")
-    return published
+    return published, published_ids
 
 
-def check_duplicates(pg_conn):
+def check_duplicates(pg_conn, request_ids):
+    if not request_ids:
+        return []
     with pg_conn.cursor() as cur:
         cur.execute(
             """SELECT request_id::text, COUNT(*) as cnt
                FROM processed
-               WHERE request_id::text LIKE %s
+               WHERE request_id = ANY(%s)
                GROUP BY request_id
                HAVING COUNT(*) > 1""",
-            (f"{EXPERIMENT_TAG}-%",),
+            (request_ids,),
         )
         return cur.fetchall()
 
@@ -167,11 +172,13 @@ def check_dlq(rabbitmq_host, rabbitmq_user, rabbitmq_pass):
         return None
 
 
-def count_processed(pg_conn):
+def count_processed(pg_conn, request_ids):
+    if not request_ids:
+        return {}
     with pg_conn.cursor() as cur:
         cur.execute(
-            "SELECT outcome, COUNT(*) FROM processed WHERE request_id::text LIKE %s GROUP BY outcome",
-            (f"{EXPERIMENT_TAG}-%",),
+            "SELECT outcome, COUNT(*) FROM processed WHERE request_id = ANY(%s) GROUP BY outcome",
+            (request_ids,),
         )
         return dict(cur.fetchall())
 
@@ -194,10 +201,6 @@ def main():
                         help="Directorio para guardar resultados CSV (default: benchmarks/tests/results/)")
     args = parser.parse_args()
 
-    global TOTAL_MESSAGES, PUBLISH_RATE
-    TOTAL_MESSAGES = args.messages
-    PUBLISH_RATE = args.rate
-
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = args.output_dir or os.path.join(script_dir, "results")
 
@@ -210,7 +213,7 @@ def main():
     log("=" * 60)
     log("TEST DE TOLERANCIA A FALLOS")
     log(f"EXPERIMENT_TAG={EXPERIMENT_TAG}")
-    log(f"Total mensajes={TOTAL_MESSAGES}, rate={PUBLISH_RATE} msg/s, min_workers={args.min_workers}")
+    log(f"Total mensajes={args.messages}, rate={args.rate} msg/s, min_workers={args.min_workers}")
     log("=" * 60)
 
     set_desired_count(ecs, args.min_workers)
@@ -219,8 +222,8 @@ def main():
         return 1
 
     log("\n[PASO 2] Publicando mensajes a RabbitMQ...")
-    published = publish_messages(args.rabbitmq_host, args.rabbitmq_user,
-                                  args.rabbitmq_pass, TOTAL_MESSAGES, PUBLISH_RATE)
+    published, published_ids = publish_messages(args.rabbitmq_host, args.rabbitmq_user,
+                                  args.rabbitmq_pass, args.messages, args.rate)
 
     log(f"\n[PASO 3] Esperando {args.kill_at_sec}s antes de matar worker...")
     time.sleep(args.kill_at_sec)
@@ -260,7 +263,7 @@ def main():
     results = {
         "experiment_tag": EXPERIMENT_TAG,
         "passed": "0",
-        "total_messages": str(TOTAL_MESSAGES),
+        "total_messages": str(args.messages),
         "published": str(published),
         "processed": "0",
         "duplicates_found": "0",
@@ -269,7 +272,7 @@ def main():
         "worker_killed": "1" if killed else "0",
     }
 
-    duplicates = check_duplicates(pg_conn)
+    duplicates = check_duplicates(pg_conn, published_ids)
     if duplicates:
         results["duplicates_found"] = str(len(duplicates))
         log(f"[FAIL] {len(duplicates)} request_id(s) duplicados encontrados:")
@@ -279,7 +282,7 @@ def main():
     else:
         log("[PASS] No hay request_id duplicados en processed (idempotencia OK)")
 
-    counts = count_processed(pg_conn)
+    counts = count_processed(pg_conn, published_ids)
     total_processed = sum(counts.values())
     results["processed"] = str(total_processed)
     log(f"\n[DATOS] Procesados: {total_processed}/{published} mensajes")
@@ -316,8 +319,9 @@ def main():
 
     log("\n[LIMPIANDO] Datos de prueba...")
     with pg_conn.cursor() as cur:
-        cur.execute("DELETE FROM results WHERE request_id::text LIKE %s", (f"{EXPERIMENT_TAG}-%",))
-        cur.execute("DELETE FROM processed WHERE request_id::text LIKE %s", (f"{EXPERIMENT_TAG}-%",))
+        if published_ids:
+            cur.execute("DELETE FROM results WHERE request_id = ANY(%s)", (published_ids,))
+            cur.execute("DELETE FROM processed WHERE request_id = ANY(%s)", (published_ids,))
     pg_conn.commit()
     pg_conn.close()
 
