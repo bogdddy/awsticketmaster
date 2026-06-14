@@ -22,3 +22,10 @@ class Config:
 
     sqs_queue_url = os.environ.get("SQS_QUEUE_URL", "")
     sqs_scaling_interval = int(os.environ.get("SQS_SCALING_INTERVAL_S", "15"))
+
+    max_retries = int(os.environ.get("MAX_RETRIES", "3"))
+    retry_backoff_base_s = int(os.environ.get("RETRY_BACKOFF_BASE_S", "1"))
+    retry_backoff_max_s = int(os.environ.get("RETRY_BACKOFF_MAX_S", "30"))
+
+    rabbitmq_exchange = os.environ.get("RABBITMQ_EXCHANGE", "tickets")
+    rabbitmq_routing_key = os.environ.get("RABBITMQ_ROUTING_KEY", "buy")

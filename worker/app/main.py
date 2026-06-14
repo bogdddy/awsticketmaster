@@ -34,6 +34,8 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
+# Hilo daemon: publica heartbeat a SQS cada ~15s para triggerear la Lambda de autoscaling.
+# El body del mensaje no importa, solo se usa como señal de reloj.
 def sqs_scaling_publisher():
     if not Config.sqs_queue_url:
         log.warning("SQS_QUEUE_URL not set, scaling trigger disabled")
@@ -52,6 +54,36 @@ def sqs_scaling_publisher():
             time.sleep(1)
 
 
+# Los reintentos ante fallos tecnicos (no de negocio) siguen backoff exponencial:
+# retry 1 -> sleep(1s), retry 2 -> sleep(2s), retry 3 -> sleep(4s), etc.
+# Tras agotar MAX_RETRIES, el mensaje va a DLQ.
+def _get_retry_count(data):
+    return data.get("x-retry-count", 0)
+
+
+def _apply_retry_backoff(retry_count):
+    if retry_count <= 0:
+        return
+    backoff = Config.retry_backoff_base_s * (2 ** (retry_count - 1))
+    if backoff > Config.retry_backoff_max_s:
+        backoff = Config.retry_backoff_max_s
+    log.info("Retry #%d: backing off %ds before processing", retry_count, backoff)
+    time.sleep(backoff)
+
+
+# Publica una copia del mensaje con x-retry-count incrementado para que otro worker lo reintente.
+# El mensaje original se ackea (se descarta) y la copia va al final de la cola.
+def _publish_retry(ch, data, retry_count):
+    retry_data = dict(data)
+    retry_data["x-retry-count"] = retry_count
+    ch.basic_publish(
+        exchange=Config.rabbitmq_exchange,
+        routing_key=Config.rabbitmq_routing_key,
+        body=json.dumps(retry_data),
+        properties=pika.BasicProperties(delivery_mode=2),
+    )
+
+
 def process_message(ch, method, properties, body):
     start_ts = datetime.now(timezone.utc)
 
@@ -63,8 +95,14 @@ def process_message(ch, method, properties, body):
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
         return
 
+    retry_count = _get_retry_count(data)
+    if retry_count > 0:
+        _apply_retry_backoff(retry_count)
+
     conn = db.get_conn()
     try:
+        # Idempotencia: si el request_id ya fue procesado, ack y salir sin duplicar la venta.
+        # RabbitMQ entrega at-least-once -> mismo mensaje puede llegar 2 veces.
         existing = check_idempotent(conn, str(req.request_id))
         if existing:
             log.info("Duplicate request_id=%s result=%s", req.request_id, existing)
@@ -98,12 +136,19 @@ def process_message(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
+        # Error tecnico (no de negocio): reintentar con backoff o enviar a DLQ.
         log.error("Error processing request_id=%s: %s", req.request_id, e)
         try:
             conn.rollback()
         except Exception:
             pass
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        if retry_count < Config.max_retries:
+            log.info("Scheduling retry #%d for request_id=%s", retry_count + 1, req.request_id)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            _publish_retry(ch, data, retry_count + 1)
+        else:
+            log.warning("Max retries (%d) exhausted for request_id=%s sending to DLQ", Config.max_retries, req.request_id)
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
     finally:
         try:
             db.put_conn(conn)

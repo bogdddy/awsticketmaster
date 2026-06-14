@@ -1,22 +1,9 @@
 """
 Test de tolerancia a fallos: worker crash recovery.
 
-Requiere:
-  - Infraestructura AWS desplegada (EC2, ECS, RabbitMQ, PostgreSQL)
-  - AWS CLI configurado con credenciales
-  - acceso de red a las maquinas
-
-Uso:
-    python benchmarks/tests/test_fault_tolerance.py [options]
-
-El script:
-  1. Prepara un experimento con carga moderada (~20 rps)
-  2. Durante la ejecucion, mata una tarea ECS (worker Fargate)
-  3. Verifica que:
-     a) Los mensajes en proceso se reencolan y son procesados por otro worker
-     b) No hay duplicados en la tabla `processed`
-     c) Los mensajes que exceden reintentos van a DLQ
-  4. Reporta resultados en CSV para integracion con benchmarks
+Publica mensajes a RabbitMQ, mata una tarea ECS Fargate durante el procesamiento,
+y verifica recuperacion: sin duplicados en processed, cola drenada, workers restaurados.
+Resultados en CSV compatibles con collect_results.py.
 """
 import argparse
 import csv
@@ -51,6 +38,16 @@ def _write_summary_csv(output_dir, results):
         writer.writeheader()
         writer.writerow(results)
     print(f"[RESULT] Summary saved: {path}")
+    # Standard summary.csv for collect_results.py compatibility
+    std_path = os.path.join(output_dir, "summary.csv")
+    with open(std_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["test", "passed", "total_messages", "published", "processed",
+                         "duplicates_found", "worker_killed"])
+        writer.writerow(["fault_tolerance", results.get("passed", "0"),
+                         results.get("total_messages", "0"), results.get("published", "0"),
+                         results.get("processed", "0"), results.get("duplicates_found", "0"),
+                         results.get("worker_killed", "0")])
     return path
 
 

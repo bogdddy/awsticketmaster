@@ -201,7 +201,7 @@ cleanup
 python3 ./tests/test_oversell.py \
     --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
     --seats 100 --requests 500 --threads 8 \
-    --output-dir "$RESULTS_DIR/oversight"
+    --output-dir "$RESULTS_DIR/oversight/pool_100"
 save_results "oversight" "pool_100"
 
 # ==========================================
@@ -217,7 +217,7 @@ python3 ./tests/test_fault_tolerance.py \
     --rabbitmq-host "$RABBITMQ_HOST" --rabbitmq-user "$RABBITMQ_USER" --rabbitmq-pass "$RABBITMQ_PASSWORD" \
     --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
     --messages 100 --rate 20 --min-workers 2 --kill-at-sec 3 \
-    --output-dir "$RESULTS_DIR/fault_tolerance"
+    --output-dir "$RESULTS_DIR/fault_tolerance/worker_kill"
 save_results "fault_tolerance" "worker_kill"
 
 echo ""

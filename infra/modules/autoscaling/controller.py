@@ -17,9 +17,13 @@ TARGET_BACKLOG = float(os.environ["TARGET_BACKLOG"])
 WORKER_MIN    = int(os.environ["WORKER_MIN"])
 WORKER_MAX    = int(os.environ["WORKER_MAX"])
 
+# Estimacion inicial de capacidad por worker (se afina experimentalmente en calibracion).
+# Con 100ms de delay y overhead, un worker procesa ~10 msg/s en regimen secuencial.
 CAPACITY_PER_WORKER = 10.0
-SCALE_UP_COOLDOWN = 30    # segundos entre scale-ups
-SCALE_DOWN_COOLDOWN = 90  # segundos entre scale-downs
+# Cooldowns asimetricos: subida rapida (30s) para responder a picos, bajada lenta (90s)
+# para evitar flapping (oscilacion del numero de workers).
+SCALE_UP_COOLDOWN = 30
+SCALE_DOWN_COOLDOWN = 90
 
 NAMESPACE = f"{PROJECT_NAME}/autoscaling"
 
@@ -27,7 +31,7 @@ cloudwatch = boto3.client("cloudwatch")
 ecs_client = boto3.client("ecs")
 
 _last_scale_time = 0
-_last_scale_direction = None  # "up" o "down"
+_last_scale_direction = None
 _prev_backlog = None
 _prev_arrival_rate = None
 
@@ -90,7 +94,6 @@ def put_metric(name, value, unit="Count", storage_resolution=None):
 def handler(event, context):
     global _last_scale_time, _last_scale_direction, _prev_backlog, _prev_arrival_rate
 
-    # SQS trigger — el mensaje es solo un trigger, ignoramos el body
     records = event.get("Records", [])
     if not records:
         print("No SQS records, skipping")
@@ -105,21 +108,27 @@ def handler(event, context):
         print("Failed to get metrics, skipping")
         return {"status": "error"}
 
-    # Calcular derivada del backlog (crecimiento: msg/s)
+    # Calculo de la derivada del backlog para escalado predictivo.
+    # Si el backlog esta creciendo, necesitamos workers extras para compensar antes
+    # de que el backlog se dispare.
     backlog_growth = 0
     if _prev_backlog is not None and _prev_arrival_rate is not None:
-        backlog_growth = max(0, (backlog - _prev_backlog))  # solo crecimiento positivo
+        backlog_growth = max(0, (backlog - _prev_backlog))
     _prev_backlog = backlog
     _prev_arrival_rate = arrival_rate
 
     backlog_per_worker = backlog / max(running, 1)
 
-    # Escalado predictivo: workers para tasa actual + crecimiento del backlog
+    # Formula de escalado: workers necesarios para cubrir:
+    # 1) workers_for_rate: la tasa de llegada actual (N = ceil(lambda / C))
+    # 2) workers_for_backlog: drenar el backlog acumulado en TARGET_BACKLOG segundos
+    # 3) workers_for_growth: workers extra para absorber el crecimiento del backlog
     workers_for_rate = max(1, math.ceil(arrival_rate / CAPACITY_PER_WORKER))
     workers_for_backlog = int(backlog / max(TARGET_BACKLOG, 1))
     workers_for_growth = int(backlog_growth / max(CAPACITY_PER_WORKER, 1))
 
-    # El deseado cubre: tasa actual + drenar backlog + crecimientodel backlog
+    # El deseado se recorta a los limites configurados (WORKER_MIN, WORKER_MAX)
+    # para no saturar PostgreSQL ni incurrir en costes excesivos.
     desired = max(WORKER_MIN, min(WORKER_MAX,
                   workers_for_rate + workers_for_backlog + workers_for_growth))
 
@@ -130,7 +139,6 @@ def handler(event, context):
     put_metric("BacklogGrowth", backlog_growth, "Count/Second")
     put_metric("DesiredWorkers", desired)
 
-    # Aplicar cooldown
     elapsed = now - _last_scale_time
     scaled = False
     cooldown_remaining = 0

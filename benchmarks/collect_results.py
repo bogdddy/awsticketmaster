@@ -77,7 +77,7 @@ def calculate_metrics(results_rows):
     return metrics
 
 
-EXPERIMENT_NAMES = {"calibration", "speedup", "stress", "elasticity", "contention"}
+EXPERIMENT_NAMES = {"calibration", "speedup", "stress", "elasticity", "contention", "oversight", "fault_tolerance"}
 
 
 def collect_benchmarks(input_dir):
@@ -200,7 +200,6 @@ def main():
     with open(args.output, 'w') as f:
         json.dump(output_data, f, indent=indent, default=str)
     
-    # Agrupar por timestamp para mostrar
     timestamps_seen = set()
     print(f"\nCollected {len(benchmarks)} experiments:")
     for exp_name, runs in benchmarks.items():
@@ -210,9 +209,20 @@ def main():
             ts = run_timestamps.get(run_key, "")
             timestamps_seen.add(ts) if ts else None
             ts_label = f" @{ts}" if ts else ""
-            print(f"    {run_key}{ts_label}: {m.get('total_requests', 0)} requests, "
-                  f"{m.get('sold', 0)} sold, "
-                  f"{m.get('throughput_rps', 0)} req/s")
+            if m:
+                print(f"    {run_key}{ts_label}: {m.get('total_requests', 0)} requests, "
+                      f"{m.get('sold', 0)} sold, "
+                      f"{m.get('throughput_rps', 0)} req/s")
+            else:
+                summary = run_data.get('summary', [])
+                if summary:
+                    info = summary[0]
+                    passed = info.get('passed', '?')
+                    print(f"    {run_key}{ts_label}: {info.get('test', exp_name)} "
+                          f"passed={passed} "
+                          f"requests={info.get('total_requests', info.get('total_messages', '?'))}")
+                else:
+                    print(f"    {run_key}{ts_label}: (no metrics)")
     
     if timestamps_seen:
         print(f"\nRuns found across {len(timestamps_seen)} session(s): {', '.join(sorted(timestamps_seen, reverse=True))}")

@@ -1,9 +1,11 @@
 {
-  "collected_at": "2026-06-13T22:06:30.849462",
+  "collected_at": "2026-06-14T18:14:33.122845",
   "input_dir": "./benchmark_results",
   "experiments": {
+    "fault_tolerance": {},
+    "oversight": {},
     "calibration": {
-      "rate_10@20260613_085614": {
+      "rate_10@best_becnhmark": {
         "metrics": {
           "total_requests": 882,
           "sold": 837,
@@ -57,13 +59,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/calibration/rate_10/results.csv",
-          "summary": "./benchmark_results/20260613_085614/calibration/rate_10/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/calibration/rate_10/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/calibration/rate_10/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/calibration/rate_10/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/calibration/rate_10/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/calibration/rate_10/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/calibration/rate_10/processed.csv"
         }
       },
-      "rate_100@20260613_085614": {
+      "rate_100@best_becnhmark": {
         "metrics": {
           "total_requests": 8982,
           "sold": 5666,
@@ -117,13 +119,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/calibration/rate_100/results.csv",
-          "summary": "./benchmark_results/20260613_085614/calibration/rate_100/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/calibration/rate_100/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/calibration/rate_100/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/calibration/rate_100/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/calibration/rate_100/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/calibration/rate_100/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/calibration/rate_100/processed.csv"
         }
       },
-      "rate_50@20260613_085614": {
+      "rate_50@best_becnhmark": {
         "metrics": {
           "total_requests": 4482,
           "sold": 3439,
@@ -177,15 +179,15 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/calibration/rate_50/results.csv",
-          "summary": "./benchmark_results/20260613_085614/calibration/rate_50/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/calibration/rate_50/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/calibration/rate_50/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/calibration/rate_50/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/calibration/rate_50/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/calibration/rate_50/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/calibration/rate_50/processed.csv"
         }
       }
     },
     "contention": {
-      "hotspot_80_5@20260613_085614": {
+      "hotspot_80_5@best_becnhmark": {
         "metrics": {
           "total_requests": 5050,
           "sold": 3809,
@@ -244,13 +246,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/contention/hotspot_80_5/results.csv",
-          "summary": "./benchmark_results/20260613_085614/contention/hotspot_80_5/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/contention/hotspot_80_5/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/contention/hotspot_80_5/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/contention/hotspot_80_5/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/contention/hotspot_80_5/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/contention/hotspot_80_5/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/contention/hotspot_80_5/processed.csv"
         }
       },
-      "uniform@20260613_085614": {
+      "uniform@best_becnhmark": {
         "metrics": {
           "total_requests": 5050,
           "sold": 4929,
@@ -309,15 +311,15 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/contention/uniform/results.csv",
-          "summary": "./benchmark_results/20260613_085614/contention/uniform/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/contention/uniform/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/contention/uniform/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/contention/uniform/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/contention/uniform/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/contention/uniform/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/contention/uniform/processed.csv"
         }
       }
     },
     "elasticity": {
-      "run_1@20260613_191639": {
+      "run_1@best_becnhmark": {
         "metrics": {
           "total_requests": 56429,
           "sold": 15624,
@@ -446,13 +448,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_191639/elasticity/run_1/results.csv",
-          "summary": "./benchmark_results/20260613_191639/elasticity/run_1/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_191639/elasticity/run_1/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_191639/elasticity/run_1/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/elasticity/run_1/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/elasticity/run_1/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/elasticity/run_1/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/elasticity/run_1/processed.csv"
         }
       },
-      "run_2@20260613_191639": {
+      "run_2@best_becnhmark": {
         "metrics": {
           "total_requests": 57785,
           "sold": 15915,
@@ -581,15 +583,15 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_191639/elasticity/run_2/results.csv",
-          "summary": "./benchmark_results/20260613_191639/elasticity/run_2/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_191639/elasticity/run_2/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_191639/elasticity/run_2/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/elasticity/run_2/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/elasticity/run_2/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/elasticity/run_2/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/elasticity/run_2/processed.csv"
         }
       }
     },
     "speedup": {
-      "workers_1@20260613_085614": {
+      "workers_1@best_becnhmark": {
         "metrics": {
           "total_requests": 598,
           "sold": 583,
@@ -643,13 +645,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/speedup/workers_1/results.csv",
-          "summary": "./benchmark_results/20260613_085614/speedup/workers_1/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/speedup/workers_1/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/speedup/workers_1/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/speedup/workers_1/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/speedup/workers_1/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/speedup/workers_1/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/speedup/workers_1/processed.csv"
         }
       },
-      "workers_2@20260613_085614": {
+      "workers_2@best_becnhmark": {
         "metrics": {
           "total_requests": 1194,
           "sold": 1111,
@@ -703,13 +705,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/speedup/workers_2/results.csv",
-          "summary": "./benchmark_results/20260613_085614/speedup/workers_2/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/speedup/workers_2/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/speedup/workers_2/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/speedup/workers_2/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/speedup/workers_2/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/speedup/workers_2/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/speedup/workers_2/processed.csv"
         }
       },
-      "workers_4@20260613_085614": {
+      "workers_4@best_becnhmark": {
         "metrics": {
           "total_requests": 2390,
           "sold": 2028,
@@ -763,13 +765,13 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/speedup/workers_4/results.csv",
-          "summary": "./benchmark_results/20260613_085614/speedup/workers_4/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/speedup/workers_4/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/speedup/workers_4/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/speedup/workers_4/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/speedup/workers_4/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/speedup/workers_4/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/speedup/workers_4/processed.csv"
         }
       },
-      "workers_8@20260613_085614": {
+      "workers_8@best_becnhmark": {
         "metrics": {
           "total_requests": 4780,
           "sold": 3655,
@@ -823,15 +825,15 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/speedup/workers_8/results.csv",
-          "summary": "./benchmark_results/20260613_085614/speedup/workers_8/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/speedup/workers_8/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/speedup/workers_8/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/speedup/workers_8/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/speedup/workers_8/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/speedup/workers_8/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/speedup/workers_8/processed.csv"
         }
       }
     },
     "stress": {
-      "max_rate_80@20260613_085614": {
+      "max_rate_80@best_becnhmark": {
         "metrics": {
           "total_requests": 15469,
           "sold": 7655,
@@ -900,31 +902,43 @@
           }
         ],
         "files": {
-          "results": "./benchmark_results/20260613_085614/stress/max_rate_80/results.csv",
-          "summary": "./benchmark_results/20260613_085614/stress/max_rate_80/summary.csv",
-          "throughput_by_minute": "./benchmark_results/20260613_085614/stress/max_rate_80/throughput_by_minute.csv",
-          "processed": "./benchmark_results/20260613_085614/stress/max_rate_80/processed.csv"
+          "results": "./benchmark_results/best_becnhmark/stress/max_rate_80/results.csv",
+          "summary": "./benchmark_results/best_becnhmark/stress/max_rate_80/summary.csv",
+          "throughput_by_minute": "./benchmark_results/best_becnhmark/stress/max_rate_80/throughput_by_minute.csv",
+          "processed": "./benchmark_results/best_becnhmark/stress/max_rate_80/processed.csv"
         }
       }
     }
   },
   "summary": {
+    "fault_tolerance": {
+      "num_runs": 0,
+      "total_requests": 0,
+      "total_sold": 0,
+      "runs": []
+    },
+    "oversight": {
+      "num_runs": 0,
+      "total_requests": 0,
+      "total_sold": 0,
+      "runs": []
+    },
     "calibration": {
       "num_runs": 3,
       "total_requests": 14346,
       "total_sold": 9942,
       "runs": [
         {
-          "name": "rate_10@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "rate_10@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "rate_100@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "rate_100@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "rate_50@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "rate_50@best_becnhmark",
+          "timestamp": "best_becnhmark"
         }
       ]
     },
@@ -934,12 +948,12 @@
       "total_sold": 8738,
       "runs": [
         {
-          "name": "hotspot_80_5@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "hotspot_80_5@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "uniform@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "uniform@best_becnhmark",
+          "timestamp": "best_becnhmark"
         }
       ]
     },
@@ -949,12 +963,12 @@
       "total_sold": 31539,
       "runs": [
         {
-          "name": "run_1@20260613_191639",
-          "timestamp": "20260613_191639"
+          "name": "run_1@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "run_2@20260613_191639",
-          "timestamp": "20260613_191639"
+          "name": "run_2@best_becnhmark",
+          "timestamp": "best_becnhmark"
         }
       ]
     },
@@ -964,20 +978,20 @@
       "total_sold": 7377,
       "runs": [
         {
-          "name": "workers_1@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "workers_1@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "workers_2@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "workers_2@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "workers_4@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "workers_4@best_becnhmark",
+          "timestamp": "best_becnhmark"
         },
         {
-          "name": "workers_8@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "workers_8@best_becnhmark",
+          "timestamp": "best_becnhmark"
         }
       ]
     },
@@ -987,8 +1001,8 @@
       "total_sold": 7655,
       "runs": [
         {
-          "name": "max_rate_80@20260613_085614",
-          "timestamp": "20260613_085614"
+          "name": "max_rate_80@best_becnhmark",
+          "timestamp": "best_becnhmark"
         }
       ]
     }

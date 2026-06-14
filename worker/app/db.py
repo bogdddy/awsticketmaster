@@ -25,6 +25,9 @@ class Database:
         self._pool.closeall()
 
 
+# Idempotencia: si el request_id ya existe en processed, es un mensaje duplicado
+# (entrega at-least-once de RabbitMQ). Devolvemos el resultado anterior para
+# que el worker pueda ack sin reprocesar.
 def check_idempotent(conn, request_id):
     with conn.cursor() as cur:
         cur.execute(
@@ -39,6 +42,9 @@ def check_idempotent(conn, request_id):
     return None
 
 
+# Registra el resultado del procesamiento. ON CONFLICT DO NOTHING garantiza
+# que aunque dos workers intenten marcar el mismo request_id, solo el primero
+# persiste -> idempotencia incluso si el INSERT se ejecuta 2 veces.
 def mark_processed(conn, request_id, result, enqueue_ts=None, start_ts=None, finish_ts=None, worker_id=None):
     with conn.cursor() as cur:
         cur.execute(
@@ -57,6 +63,10 @@ def mark_processed(conn, request_id, result, enqueue_ts=None, start_ts=None, fin
     conn.commit()
 
 
+# UPDATE condicional: solo cambia el estado si el asiento esta 'available'.
+# PostgreSQL bloquea la fila a nivel de fila durante la ejecucion, serializando
+# los accesos concurrentes. Si rowcount=0, el asiento ya fue vendido por otro worker.
+# Esta es la unica sentencia que garantiza no oversell en modo numbered.
 def sell_seat(conn, event_id, seat_id, request_id):
     with conn.cursor() as cur:
         cur.execute(
@@ -68,6 +78,9 @@ def sell_seat(conn, event_id, seat_id, request_id):
         return cur.rowcount
 
 
+# Decremento atomico del inventario con guarda: solo descuenta si aun hay
+# capacidad disponible (sold < capacity). El CHECK (sold <= capacity) en la
+# tabla actua como red de seguridad adicional.
 def decrement_inventory(conn, event_id):
     with conn.cursor() as cur:
         cur.execute(

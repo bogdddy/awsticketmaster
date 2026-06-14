@@ -1,19 +1,9 @@
 """
-Test de verificacion de No Oversell.
+Test de verificacion de No Oversell bajo concurrencia.
 
-Requiere acceso a PostgreSQL en EC2 (10.0.1.20) con las tablas del proyecto.
-
-Uso:
-    python benchmarks/tests/test_oversell.py [--pg-host HOST] [--pg-user USER] [--pg-pass PASS]
-
-El script:
-  1. Crea un evento temporal con 100 asientos numbered
-  2. Lanza N requests concurrentes (por defecto 500) con distribucion hotspot sobre esos 100 asientos
-  3. Verifica que no haya oversell: COUNT(DISTINCT seat_id) = COUNT(*) y ambos <= 100
-  4. Limpia los datos de prueba
-
-Salida: PASS/FAIL con detalle de filas violadas si las hay.
-Los resultados se guardan en CSV para integracion con benchmarks.
+Crea un evento con N asientos, lanza requests concurrentes con distribucion hotspot,
+y verifica que no haya oversell (ningun asiento vendido mas de una vez).
+Resultados en CSV compatibles con collect_results.py.
 """
 import argparse
 import csv
@@ -52,6 +42,13 @@ def _write_summary_csv(output_dir, success, total_sold, total_requests, issues, 
             "; ".join(issues) if issues else "none",
         ])
     print(f"[RESULT] Summary saved: {path}")
+    # Standard summary.csv for collect_results.py compatibility
+    std_path = os.path.join(output_dir, "summary.csv")
+    with open(std_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["test", "passed", "total_requests", "sold", "throughput_rps"])
+        writer.writerow(["oversell", "1" if success else "0", str(total_requests),
+                         str(total_sold), f"{total_sold/elapsed:.2f}" if elapsed > 0 else "0"])
     return path
 
 

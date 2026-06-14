@@ -28,9 +28,14 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "POSTGRES_DB",       value = var.postgres_db_name },
         { name = "POSTGRES_USER",     value = var.postgres_user },
         { name = "POSTGRES_PASS",     value = var.postgres_password },
-        { name = "WORKER_ID",         value = "${var.project_name}-worker" },
-        { name = "SQS_QUEUE_URL",     value = var.sqs_queue_url },
-        { name = "AWS_REGION",        value = var.aws_region },
+        { name = "WORKER_ID",              value = "${var.project_name}-worker" },
+        { name = "SQS_QUEUE_URL",          value = var.sqs_queue_url },
+        { name = "AWS_REGION",             value = var.aws_region },
+        { name = "MAX_RETRIES",            value = "3" },
+        { name = "RETRY_BACKOFF_BASE_S",   value = "1" },
+        { name = "RETRY_BACKOFF_MAX_S",    value = "30" },
+        { name = "RABBITMQ_EXCHANGE",      value = "tickets" },
+        { name = "RABBITMQ_ROUTING_KEY",   value = "buy" },
       ]
 
       log_configuration = {

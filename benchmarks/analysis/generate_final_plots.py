@@ -152,7 +152,6 @@ def plot_latency_percentiles():
     ax.set_yscale("log")
     ax.grid(True, alpha=0.3, axis="y")
 
-    # Add value labels on bars
     for bar_group in [bars1, bars2, bars3]:
         for bar in bar_group:
             h = bar.get_height()

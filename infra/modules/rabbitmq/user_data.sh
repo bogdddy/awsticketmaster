@@ -64,7 +64,7 @@ cat > /etc/rabbitmq/definitions/definitions.json << 'DEFS'
       "apply-to": "queues",
       "definition": {
         "dead-letter-exchange": "tickets.dlx",
-        "dead-letter-routing-key": ""
+        "dead-letter-routing-key": "buy"
       },
       "priority": 1
     }
@@ -79,7 +79,7 @@ cat > /etc/rabbitmq/definitions/definitions.json << 'DEFS'
   ],
   "bindings": [
     {"source": "tickets", "vhost": "/", "destination": "tickets.buy", "destination_type": "queue", "routing_key": "buy", "arguments": {}},
-    {"source": "tickets.dlx", "vhost": "/", "destination": "tickets.dlq", "destination_type": "queue", "routing_key": "", "arguments": {}}
+    {"source": "tickets.dlx", "vhost": "/", "destination": "tickets.dlq", "destination_type": "queue", "routing_key": "buy", "arguments": {}}
   ]
 }
 DEFS

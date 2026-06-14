@@ -40,7 +40,7 @@ python3 ./tests/test_oversell.py \
     --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
     --pg-db "$PG_DB" \
     --seats 100 --requests 500 --threads 8 \
-    --output-dir "$RESULTS_DIR/oversight"
+    --output-dir "$RESULTS_DIR/oversight/pool_100"
 echo ""
 
 # 2. FAULT TOLERANCE (requires ECS + AWS CLI)
@@ -54,7 +54,7 @@ if [ "$SKIP_FT" -eq 0 ]; then
         --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
         --pg-db "$PG_DB" \
         --messages 100 --rate 20 --min-workers 2 --kill-at-sec 3 \
-        --output-dir "$RESULTS_DIR/fault_tolerance"
+        --output-dir "$RESULTS_DIR/fault_tolerance/worker_kill"
 else
     echo "=========================================="
     echo "SKIPPING: Fault Tolerance test (--skip-ft)"

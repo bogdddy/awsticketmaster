@@ -70,4 +70,4 @@ See [`deploy.md`](deploy.md) for full instructions.
 
 ## Architecture Pivot
 
-The autoscaler originally used EventBridge (60s minimum interval). Combined with Fargate provisioning (60-90s), total response lag was ~150s, making the autoscaler ineffective. The fix: workers publish to SQS every ~15s, triggering the Lambda. A NAT Gateway was added to give the Lambda outbound internet access. See [`ARCHITECTURE_LOG.md`](ARCHITECTURE_LOG.md) for details.
+The autoscaler originally used EventBridge (60s minimum interval). Combined with Fargate provisioning (60-90s), total response lag was ~150s, making the autoscaler ineffective. The fix: workers publish to SQS every ~15s, triggering the Lambda. A NAT Gateway was added to give the Lambda outbound internet access.

@@ -43,12 +43,16 @@ class LoadGenerator:
 
         self._build_hotspot_pool()
 
+    # Genera un pool reducido de asientos "calientes" para simular contention hotspot.
+    # En los experimentos de contention, el 80% del trafico se dirige al 5% de los asientos.
     def _build_hotspot_pool(self):
         hot_seat_count = max(1, int(cfg.total_seats * cfg.hotspot_pct_seats / 100))
         self.hot_seats = set(random.sample(range(1, cfg.total_seats + 1), hot_seat_count))
         self._hot_list = list(self.hot_seats)
         log.info("Hotspot pool: %d hot seats (%.1f%% of total)", len(self.hot_seats), cfg.hotspot_pct_seats)
 
+    # Elige un asiento siguiendo la distribucion hotspot: p% del trafico sobre el pool caliente,
+    # el resto sobre asientos frios (fuera del pool).
     def _pick_seat(self):
         if random.random() * 100 < cfg.hotspot_pct_traffic and self._hot_list:
             return random.choice(self._hot_list)
@@ -64,6 +68,7 @@ class LoadGenerator:
             "seat_id": self._pick_seat() if cfg.mode == "numbered" else None,
             "mode": cfg.mode,
             "enqueue_ts": datetime.now(timezone.utc).isoformat(),
+            "x-retry-count": 0,
         }
 
     def publish_batch(self, rate: float, duration: float) -> int:
@@ -99,6 +104,12 @@ class LoadGenerator:
 
         return count
 
+    # Workload Z(t) para tests de elasticidad. Comprende 5 fases:
+    # 1) Low load: carga base baja para establecer regimen estacionario
+    # 2) Ramp-up: incremento gradual lineal (20 pasos) para probar escalado progresivo
+    # 3) Spikes: rafagas cortas de alta tasa para probar reaccion ante picos
+    # 4) Sustained high: carga alta mantenida para observar comportamiento estacionario
+    # 5) Cooldown: descenso gradual (10 pasos) para probar escalado descendente
     def run_zt(self):
         p = cfg.phase
         total = 0
