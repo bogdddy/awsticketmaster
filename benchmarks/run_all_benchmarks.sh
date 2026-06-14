@@ -189,9 +189,40 @@ cleanup
 PYTHONPATH=../loadgen python3 run_experiment.py --type contention --workers 4 --hotspot-pct 5 --hotspot-traffic 80 $BASE_OPTS
 save_results "contention" "hotspot_80_5"
 
+# ==========================================
+# F) OVERSHOP VERIFICATION
+# ==========================================
 echo ""
 echo "=========================================="
-echo "All benchmarks complete!"
+echo "F) OVERSIGHT VERIFICATION - pool 100 seats, 500 requests"
+echo "=========================================="
+scale_workers 4
+cleanup
+python3 ./tests/test_oversell.py \
+    --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
+    --seats 100 --requests 500 --threads 8 \
+    --output-dir "$RESULTS_DIR/oversight"
+save_results "oversight" "pool_100"
+
+# ==========================================
+# G) FAULT TOLERANCE TEST
+# ==========================================
+echo ""
+echo "=========================================="
+echo "G) FAULT TOLERANCE - kill worker during load"
+echo "=========================================="
+scale_workers 2
+cleanup
+python3 ./tests/test_fault_tolerance.py \
+    --rabbitmq-host "$RABBITMQ_HOST" --rabbitmq-user "$RABBITMQ_USER" --rabbitmq-pass "$RABBITMQ_PASSWORD" \
+    --pg-host "$PG_HOST" --pg-user "$PG_USER" --pg-pass "$PG_PASSWORD" \
+    --messages 100 --rate 20 --min-workers 2 --kill-at-sec 3 \
+    --output-dir "$RESULTS_DIR/fault_tolerance"
+save_results "fault_tolerance" "worker_kill"
+
+echo ""
+echo "=========================================="
+echo "All benchmarks and validation tests complete!"
 echo "=========================================="
 echo "End time: $(date)"
 echo ""
@@ -199,7 +230,7 @@ echo "Results saved to: $RESULTS_DIR/"
 echo ""
 echo "Next steps:"
 echo "1. Generate plots:"
-echo "   cd analysis && python3 plot_results.py --input-dir ../benchmark_results --output-dir ./plots"
+echo "   cd analysis && python3 generate_final_plots.py"
 echo ""
 echo "2. Collect summary:"
 echo "   python3 collect_results.py"
