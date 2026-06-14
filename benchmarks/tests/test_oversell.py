@@ -243,8 +243,8 @@ def run_test(pg_host, pg_port, pg_user, pg_pass, pg_db, output_dir):
 
     with conn.cursor() as cur:
         if _test_request_ids:
-            cur.execute("DELETE FROM results WHERE request_id = ANY(%s)", (_test_request_ids,))
-            cur.execute("DELETE FROM processed WHERE request_id = ANY(%s)", (_test_request_ids,))
+            cur.execute("DELETE FROM results WHERE request_id::text = ANY(%s)", (_test_request_ids,))
+            cur.execute("DELETE FROM processed WHERE request_id::text = ANY(%s)", (_test_request_ids,))
         cur.execute("DELETE FROM seats WHERE event_id = %s", (TEST_EVENT_ID,))
         cur.execute("DELETE FROM inventory WHERE event_id = %s", (TEST_EVENT_ID,))
         cur.execute("DELETE FROM events WHERE event_id = %s", (TEST_EVENT_ID,))

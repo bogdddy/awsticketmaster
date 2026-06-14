@@ -147,8 +147,8 @@ def check_duplicates(pg_conn, request_ids):
         cur.execute(
             """SELECT request_id::text, COUNT(*) as cnt
                FROM processed
-               WHERE request_id = ANY(%s)
-               GROUP BY request_id
+               WHERE request_id::text = ANY(%s)
+               GROUP BY request_id::text
                HAVING COUNT(*) > 1""",
             (request_ids,),
         )
@@ -177,7 +177,7 @@ def count_processed(pg_conn, request_ids):
         return {}
     with pg_conn.cursor() as cur:
         cur.execute(
-            "SELECT outcome, COUNT(*) FROM processed WHERE request_id = ANY(%s) GROUP BY outcome",
+            "SELECT outcome, COUNT(*) FROM processed WHERE request_id::text = ANY(%s) GROUP BY outcome",
             (request_ids,),
         )
         return dict(cur.fetchall())
@@ -320,8 +320,8 @@ def main():
     log("\n[LIMPIANDO] Datos de prueba...")
     with pg_conn.cursor() as cur:
         if published_ids:
-            cur.execute("DELETE FROM results WHERE request_id = ANY(%s)", (published_ids,))
-            cur.execute("DELETE FROM processed WHERE request_id = ANY(%s)", (published_ids,))
+            cur.execute("DELETE FROM results WHERE request_id::text = ANY(%s)", (published_ids,))
+            cur.execute("DELETE FROM processed WHERE request_id::text = ANY(%s)", (published_ids,))
     pg_conn.commit()
     pg_conn.close()
 
